@@ -14,6 +14,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
@@ -36,6 +37,7 @@ import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
@@ -274,12 +276,17 @@ fun SettingsScreen(
     exportJson: () -> String,
     message: (String) -> Unit,
 ) {
-    var local by remember(settings) { mutableStateOf(settings) }
+    // 设置项改动即生效，不需要手动保存；文本输入框保留本地文本，避免边输入边被格式化
+    var refreshText by remember(settings.autoRefreshMinutes) {
+        mutableStateOf(settings.autoRefreshMinutes.toString())
+    }
+    var timeoutText by remember(settings.timeoutSec) {
+        mutableStateOf(settings.timeoutSec.toString())
+    }
     var io by remember { mutableStateOf("") }
     var confirmClear by remember { mutableStateOf(false) }
     val clipboard = LocalClipboardManager.current
 
-    val savedMsg = stringResource(R.string.toast_settings_saved)
     val exportedMsg = stringResource(R.string.toast_exported)
     val importedMsg = stringResource(R.string.toast_imported)
     val badJsonMsg = stringResource(R.string.toast_import_failed)
@@ -296,25 +303,40 @@ fun SettingsScreen(
                 Spacer(Modifier.height(8.dp))
                 Text(stringResource(R.string.field_auto_refresh), fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 OutlinedTextField(
-                    value = local.autoRefreshMinutes.toString(),
-                    onValueChange = { local = local.copy(autoRefreshMinutes = it.toIntOrNull()?.coerceIn(0, 1440) ?: 0) },
+                    value = refreshText,
+                    onValueChange = { raw ->
+                        refreshText = raw.filter { it.isDigit() }.take(4)
+                        refreshText.toIntOrNull()?.let {
+                            onSave(settings.copy(autoRefreshMinutes = it.coerceIn(0, 1440)))
+                        }
+                    },
                     singleLine = true,
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                     modifier = Modifier.fillMaxWidth().padding(top = 4.dp),
                 )
 
                 Spacer(Modifier.height(8.dp))
                 Text(stringResource(R.string.field_timeout_default), fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 OutlinedTextField(
-                    value = local.timeoutSec.toString(),
-                    onValueChange = { local = local.copy(timeoutSec = it.toIntOrNull()?.coerceIn(2, 60) ?: 10) },
+                    value = timeoutText,
+                    onValueChange = { raw ->
+                        timeoutText = raw.filter { it.isDigit() }.take(2)
+                        timeoutText.toIntOrNull()?.let {
+                            onSave(settings.copy(timeoutSec = it.coerceIn(2, 60)))
+                        }
+                    },
                     singleLine = true,
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                     modifier = Modifier.fillMaxWidth().padding(top = 4.dp),
                 )
 
                 Spacer(Modifier.height(10.dp))
                 Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
                     Text(stringResource(R.string.field_auto_query_start), fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurface)
-                    Switch(checked = local.autoQueryOnStart, onCheckedChange = { local = local.copy(autoQueryOnStart = it) })
+                    Switch(
+                        checked = settings.autoQueryOnStart,
+                        onCheckedChange = { onSave(settings.copy(autoQueryOnStart = it)) },
+                    )
                 }
 
                 Spacer(Modifier.height(10.dp))
@@ -323,7 +345,7 @@ fun SettingsScreen(
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     listOf("system" to R.string.mode_system, "dark" to R.string.mode_dark, "light" to R.string.mode_light)
                         .forEach { (v, res) ->
-                            val selected = local.darkMode == v
+                            val selected = settings.darkMode == v
                             Box(
                                 Modifier
                                     .clip(RoundedCornerShape(999.dp))
@@ -331,7 +353,7 @@ fun SettingsScreen(
                                         if (selected) MaterialTheme.colorScheme.primary.copy(alpha = 0.14f)
                                         else MaterialTheme.colorScheme.surfaceVariant
                                     )
-                                    .clickable { local = local.copy(darkMode = v) }
+                                    .clickable { onSave(settings.copy(darkMode = v)) }
                                     .padding(horizontal = 12.dp, vertical = 7.dp),
                             ) {
                                 Text(
@@ -343,11 +365,6 @@ fun SettingsScreen(
                         }
                 }
 
-                Spacer(Modifier.height(12.dp))
-                Button(
-                    onClick = { onSave(local); message(savedMsg) },
-                    modifier = Modifier.fillMaxWidth(),
-                ) { Text(stringResource(R.string.action_save)) }
             }
         }
 

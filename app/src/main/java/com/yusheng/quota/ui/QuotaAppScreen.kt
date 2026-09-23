@@ -55,6 +55,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.activity.compose.BackHandler
 import com.yusheng.quota.R
 import com.yusheng.quota.data.Account
 import com.yusheng.quota.data.QueryConfig
@@ -99,6 +100,17 @@ fun QuotaAppRoot(vm: QuotaViewModel) {
                 is QuotaViewModel.Event.Message ->
                     snackbar.showSnackbar(event.text)
             }
+        }
+    }
+
+    // 系统返回 / 侧边滑动返回：按页面层级回退，不再直接退出应用
+    //（登录页自己会先接管返回键，见 LoginCaptureScreen）
+    BackHandler(enabled = loginRequest == null && screen != Screen.HOME) {
+        screen = when (screen) {
+            Screen.DETAIL, Screen.CATALOG, Screen.SETTINGS -> Screen.HOME
+            Screen.CONFIG -> if (editing != null) Screen.DETAIL else Screen.CATALOG
+            Screen.ABOUT -> Screen.SETTINGS
+            Screen.HOME -> Screen.HOME
         }
     }
 

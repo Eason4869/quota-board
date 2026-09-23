@@ -10,7 +10,6 @@
     <string name="action_query">Query</string>
     <string name="action_config">Configure</string>
     <string name="action_delete_account">Delete account</string>
-    <string name="action_save">Save</string>
     <string name="action_save_query">Save &amp; Query</string>
     <string name="action_export">Export</string>
     <string name="action_import">Import</string>
@@ -155,7 +154,6 @@
     <string name="toast_query_ok">Query OK</string>
     <string name="toast_query_failed">Query failed</string>
     <string name="toast_cookie_captured">Session captured</string>
-    <string name="toast_settings_saved">Settings saved</string>
     <string name="toast_exported">Exported (copied to clipboard)</string>
     <string name="toast_imported">Imported</string>
     <string name="toast_import_failed">Invalid JSON</string>

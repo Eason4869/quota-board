@@ -10,7 +10,6 @@
     <string name="action_query">查询</string>
     <string name="action_config">配置</string>
     <string name="action_delete_account">删除账户</string>
-    <string name="action_save">保存</string>
     <string name="action_save_query">保存并查询</string>
     <string name="action_export">导出</string>
     <string name="action_import">导入</string>
@@ -151,7 +150,6 @@
     <string name="toast_query_ok">查询成功</string>
     <string name="toast_query_failed">查询失败</string>
     <string name="toast_cookie_captured">已记录登录态</string>
-    <string name="toast_settings_saved">设置已保存</string>
     <string name="toast_exported">已导出（已复制到剪贴板）</string>
     <string name="toast_imported">已导入</string>
     <string name="toast_import_failed">JSON 无效</string>

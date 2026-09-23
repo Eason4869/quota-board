@@ -25,6 +25,21 @@
 | 云函数 | 任意厂商（自建函数或代理） |
 | 登录拉取 | Claude、Gemini、OpenAI、小米 MiMo |
 
+## 界面预览
+
+<!--
+  把截图放入 docs/screenshots/（文件名见该目录下的说明），
+  然后删掉这行与下面这段的注释标记，README 就会显示预览图。
+-->
+<!--
+<p align="center">
+  <img src="docs/screenshots/home.png" width="23%" alt="首页">
+  <img src="docs/screenshots/detail.png" width="23%" alt="账户详情">
+  <img src="docs/screenshots/catalog.png" width="23%" alt="厂商目录">
+  <img src="docs/screenshots/widget.png" width="23%" alt="桌面小组件">
+</p>
+-->
+
 ## 使用
 
 1. **首页 +** → 选择厂商 → 按提示填写 Key / AK-SK / 地址

@@ -14,6 +14,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.safeDrawingPadding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Refresh
@@ -38,6 +39,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
+import androidx.activity.compose.BackHandler
 import com.yusheng.quota.R
 import org.json.JSONObject
 
@@ -70,7 +72,14 @@ fun LoginCaptureScreen(
     val notLoggedInText = stringResource(R.string.login_state_unknown)
     val fetchFailedText = stringResource(R.string.login_fetch_failed)
 
-    Column(Modifier.fillMaxSize()) {
+    // 返回键先走网页历史，退无可退再关闭登录页
+    BackHandler {
+        val wv = webView.value
+        if (wv != null && wv.canGoBack()) wv.goBack() else onCancel()
+    }
+
+    // 全屏覆盖层自己让开状态栏 / 导航栏 / 刘海，避免与系统栏“打架”
+    Column(Modifier.fillMaxSize().safeDrawingPadding()) {
         Row(
             Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 8.dp),
             verticalAlignment = Alignment.CenterVertically,
