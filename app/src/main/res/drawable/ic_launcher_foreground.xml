@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 额度台图标：八向辐条 + 一个方块缺口，喻「用量刻度盘」 -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+
+    <group android:translateX="54" android:translateY="54">
+        <!-- 8 根辐条（灰度石版色），半径 14 → 26 -->
+        <path android:fillColor="#5A6472" android:pathData="M-2.6,-26 h5.2 v12 h-5.2 z" />
+        <path android:fillColor="#5A6472" android:pathData="M-2.6,14 h5.2 v12 h-5.2 z" />
+        <path android:fillColor="#5A6472" android:pathData="M-26,-2.6 h12 v5.2 h-12 z" />
+        <path android:fillColor="#5A6472" android:pathData="M14,-2.6 h12 v5.2 h-12 z" />
+
+        <group android:pivotX="0" android:pivotY="0" android:rotation="45">
+            <path android:fillColor="#5A6472" android:pathData="M-2.6,-26 h5.2 v12 h-5.2 z" />
+            <path android:fillColor="#5A6472" android:pathData="M-2.6,14 h5.2 v12 h-5.2 z" />
+            <path android:fillColor="#5A6472" android:pathData="M-26,-2.6 h12 v5.2 h-12 z" />
+        </group>
+
+        <!-- 右上角替换为方块缺口：表示刻度停在某档 -->
+        <path android:fillColor="#5A6472" android:pathData="M12,-24 h12 v12 h-12 z" />
+
+        <!-- 中心圆点 -->
+        <path android:fillColor="#5A6472" android:pathData="M-4,-4 h8 v8 h-8 z" />
+    </group>
+</vector>

@@ -1,0 +1,24 @@
+# Gradle
+.gradle/
+build/
+app/build/
+.kotlin/
+local.properties
+captures/
+.externalNativeBuild/
+.cxx/
+
+# Android Studio / IDE
+.idea/
+*.iml
+.DS_Store
+
+# 签名文件（切勿提交）
+*.jks
+*.keystore
+keystore.properties
+
+# 输出
+*.apk
+*.aab
+!gradle/wrapper/gradle-wrapper.jar

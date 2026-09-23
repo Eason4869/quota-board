@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  quota_board.xml 里存着 API Key / Cookie / AK-SK。
+  云端备份（Google 帐号）默认不该拿到这些凭证明文 —— 与「数据不出设备」的声明保持一致。
+  Android 11 及以下该文件同时服务云备份与设备间迁移，这里统一排除；迁移请用应用内 JSON 导出。
+-->
+<full-backup-content>
+    <exclude domain="sharedpref" path="quota_board.xml" />
+</full-backup-content>

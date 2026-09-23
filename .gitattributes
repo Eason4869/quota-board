@@ -1,0 +1,12 @@
+# 统一换行符：gradlew 必须保持 LF，否则 Linux CI 上会报 bad interpreter
+* text=auto
+gradlew text eol=lf
+*.sh text eol=lf
+*.bat text eol=crlf
+
+# 二进制资源不要做文本转换
+*.jar binary
+*.png binary
+*.ico binary
+*.apk binary
+*.aab binary

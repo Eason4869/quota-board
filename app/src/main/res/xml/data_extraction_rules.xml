@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 云端备份排除凭证；换机迁移（device-transfer）保留 -->
+<data-extraction-rules>
+    <cloud-backup>
+        <exclude domain="sharedpref" path="quota_board.xml" />
+    </cloud-backup>
+    <device-transfer>
+        <include domain="sharedpref" path="quota_board.xml" />
+    </device-transfer>
+</data-extraction-rules>

@@ -1,0 +1,202 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">额度台</string>
+    <string name="app_subtitle">多厂商额度 · 订阅 · 周期用量</string>
+
+    <!-- Actions -->
+    <string name="action_add">添加</string>
+    <string name="action_back">返回</string>
+    <string name="action_refresh">刷新</string>
+    <string name="action_query">查询</string>
+    <string name="action_config">配置</string>
+    <string name="action_delete_account">删除账户</string>
+    <string name="action_save">保存</string>
+    <string name="action_save_query">保存并查询</string>
+    <string name="action_export">导出</string>
+    <string name="action_import">导入</string>
+    <string name="action_clear">清空账户</string>
+
+    <!-- Titles -->
+    <string name="title_result">查询结果</string>
+    <string name="title_add">添加账户</string>
+    <string name="title_settings">设置</string>
+    <string name="title_about">关于</string>
+    <string name="title_data">数据</string>
+    <string name="title_changelog">更新日志</string>
+
+    <!-- Home -->
+    <string name="empty_title">还没有账户</string>
+    <string name="empty_hint">点右上角「+」添加厂商，同一厂商可重复添加。</string>
+    <string name="empty_result">暂无结果，点「查询」获取。</string>
+    <string name="catalog_hint">查询方式按各厂商真实能力裁剪，模板可重复添加。</string>
+    <string name="state_failed">失败</string>
+
+    <!-- Query modes -->
+    <string name="mode_api">官方 API</string>
+    <string name="mode_webhook">云函数</string>
+    <string name="mode_login">登录拉取</string>
+    <string name="mode_aksk">AK/SK</string>
+    <string name="mode_system">跟随系统</string>
+    <string name="mode_dark">深色</string>
+    <string name="mode_light">浅色</string>
+
+    <!-- Labels -->
+    <string name="label_balance">余额</string>
+    <string name="label_subscription">订阅</string>
+    <string name="label_remaining">剩余</string>
+    <string name="label_periods">周期用量</string>
+    <string name="label_error">上次错误</string>
+
+    <!-- Fields -->
+    <string name="field_name">显示名称</string>
+    <string name="field_mode">查询方式</string>
+    <string name="field_url">查询 URL</string>
+    <string name="field_api_key">API Key</string>
+    <string name="field_login_url">登录页</string>
+    <string name="field_cookie">Cookie</string>
+    <string name="field_webhook">云函数 / 代理地址</string>
+    <string name="field_wh_auth">鉴权（可选）</string>
+    <string name="field_wh_key">Header / 参数名</string>
+    <string name="field_wh_prefix">前缀</string>
+    <string name="field_wh_value">Token / Key</string>
+    <string name="field_ak">AccessKey ID</string>
+    <string name="field_sk">SecretAccessKey</string>
+    <string name="field_region">Region</string>
+    <string name="field_map_balance">余额字段路径（可选）</string>
+    <string name="field_map_plan">订阅剩余路径（可选）</string>
+    <string name="field_auto_refresh">自动刷新（分钟，0 关闭）</string>
+    <string name="field_auto_query_start">启动时自动查询</string>
+    <string name="field_dark_mode">主题</string>
+    <string name="field_io">导出 / 粘贴导入</string>
+
+    <!-- Hints -->
+    <string name="hint_zhipu">填写智谱控制台的 API Key 即可，无需添加 Bearer 前缀。</string>
+    <string name="hint_volc_aksk">请使用控制台的账号级 AK/SK（非推理 API Key）。</string>
+    <string name="hint_login">请填写控制台返回 JSON 的接口地址；若返回的是网页而不是额度数据，请改用应用内登录取数或云函数。</string>
+    <string name="hint_webhook">自建函数或代理需要鉴权时，在这里配置。</string>
+
+    <!-- About -->
+    <string name="about_author">作者</string>
+    <string name="about_author_value">彧晟Eason</string>
+    <string name="about_license">许可</string>
+    <string name="about_repo">仓库</string>
+    <string name="about_repo_value">github.com/Eason4869/quota-board</string>
+    <string name="about_privacy">隐私</string>
+    <string name="about_privacy_body">额度数据来自各厂商官方接口、云函数或你的登录态，本应用不上传任何数据。API Key 与 Cookie 仅保存在本机；导出 JSON 请自行妥善保管。</string>
+    <string name="changelog_1_0_0">v1.0.0 — 首个版本：多厂商账户、按厂商裁剪的查询方式、桌面小组件、深色/浅色主题、中英双语。</string>
+
+    <!-- Widget -->
+    <string name="widget_label">额度台</string>
+    <string name="widget_desc">在桌面查看余额与周期用量</string>
+
+    <!-- Vendors -->
+    <string name="vendor_xiaomi">小米 MiMo</string>
+    <string name="vendor_xiaomi_desc">Token Plan + 按量</string>
+    <string name="vendor_volc_agent">火山方舟 Agent Plan</string>
+    <string name="vendor_volc_agent_desc">5h / 周 / 月</string>
+    <string name="vendor_volc_coding">火山方舟 Coding Plan</string>
+    <string name="vendor_volc_coding_desc">Coding 套餐额度</string>
+    <string name="vendor_kimi">Kimi Coding</string>
+    <string name="vendor_kimi_desc">Token Plan 窗口</string>
+    <string name="vendor_zhipu">智谱 GLM</string>
+    <string name="vendor_zhipu_desc">Token Plan 额度</string>
+    <string name="vendor_minimax">MiniMax Coding</string>
+    <string name="vendor_minimax_desc">Coding 套餐额度</string>
+    <string name="vendor_opencode">OpenCode Go</string>
+    <string name="vendor_opencode_desc">订阅窗口</string>
+    <string name="vendor_deepseek">DeepSeek</string>
+    <string name="vendor_deepseek_desc">官方余额 API</string>
+    <string name="vendor_siliconflow">硅基流动</string>
+    <string name="vendor_siliconflow_desc">账户余额</string>
+    <string name="vendor_claude">Claude</string>
+    <string name="vendor_claude_desc">订阅限速窗口</string>
+    <string name="vendor_gemini">Gemini</string>
+    <string name="vendor_gemini_desc">订阅用量</string>
+    <string name="vendor_openai">OpenAI</string>
+    <string name="vendor_openai_desc">Billing / 订阅</string>
+    <string name="vendor_openrouter">OpenRouter</string>
+    <string name="vendor_openrouter_desc">Credits 充消</string>
+    <string name="vendor_generic">通用</string>
+    <string name="vendor_generic_desc">API / 云函数 / 登录</string>
+    <!-- ── v1.1 追加 ── -->
+    <string name="dash_accounts">%1$d 个账户</string>
+    <string name="dash_synced">已同步 %1$s</string>
+    <string name="dash_never">未查询</string>
+    <string name="dash_tap_add">点「添加」开始</string>
+    <string name="dash_failed">%1$d 个待排查</string>
+    <string name="rel_just_now">刚刚</string>
+    <string name="rel_minutes">%1$d 分钟前</string>
+    <string name="rel_hours">%1$d 小时前</string>
+    <string name="rel_days">%1$d 天前</string>
+
+    <string name="window_5h">5 小时</string>
+    <string name="window_week">周</string>
+    <string name="window_month">月</string>
+    <string name="window_day">日</string>
+    <string name="label_used">已用</string>
+    <string name="label_remain_pct">剩余 %1$d%%</string>
+    <string name="label_reset">重置</string>
+    <string name="label_extras">厂商字段</string>
+    <string name="label_updated">更新于 %1$s</string>
+
+    <string name="title_login">登录</string>
+    <string name="login_need_cookie">还没有登录态。在应用内登录后可直接拉取控制台接口。</string>
+    <string name="action_login_fetch">去登录并抓取</string>
+    <string name="action_login_save_cookie">只保存 Cookie</string>
+    <string name="action_login_fetch_now">抓取额度</string>
+    <string name="login_state_logged_in">已检测到登录态，点「抓取额度」。</string>
+    <string name="login_state_unknown">请先在下方登录，再点「抓取额度」。</string>
+    <string name="login_fetch_failed">没能从这个页面取到额度接口数据</string>
+
+    <string name="toast_query_ok">查询成功</string>
+    <string name="toast_query_failed">查询失败</string>
+    <string name="toast_cookie_captured">已记录登录态</string>
+    <string name="toast_settings_saved">设置已保存</string>
+    <string name="toast_exported">已导出（已复制到剪贴板）</string>
+    <string name="toast_imported">已导入</string>
+    <string name="toast_import_failed">JSON 无效</string>
+    <string name="toast_cleared">已清空</string>
+    <string name="confirm_clear_title">清空所有账户？</string>
+    <string name="confirm_clear_body">会删除本机所有账户及其凭证，不可撤销。</string>
+    <string name="action_confirm">确认</string>
+    <string name="action_cancel">取消</string>
+
+    <string name="field_timeout">超时（秒，0 = 用默认）</string>
+    <string name="field_timeout_default">默认超时（秒）</string>
+    <string name="field_org_id">组织 ID（团队版）</string>
+    <string name="field_project_id">项目 ID（团队版）</string>
+    <string name="field_wh_fallback">代理地址（可选兜底）</string>
+    <string name="hint_zhipu_team">组织 ID 与项目 ID 都填才走团队版接口；个人版请留空。</string>
+    <string name="hint_script_present">已配置自定义提取器：会优先使用，解析失败时自动回退内置解析。</string>
+    <string name="wh_auth_none">无</string>
+    <string name="wh_auth_bearer">Bearer</string>
+    <string name="wh_auth_header">Header</string>
+    <string name="wh_auth_query">Query</string>
+    <string name="changelog_1_1_0">v1.1.0 — 新增应用内登录取数、自定义提取器、首页仪表盘、厂商字段展示、StepFun 与 Novita AI、多账户桌面小组件；各厂商额度解析更准确。</string>
+
+    <string name="vendor_stepfun">阶跃星辰 StepFun</string>
+    <string name="vendor_stepfun_desc">账户余额</string>
+    <string name="vendor_novita">Novita AI</string>
+    <string name="vendor_novita_desc">账户余额</string>
+
+    <string name="widget_empty">额度台 · 还没有账户</string>
+    <string name="widget_tap_open">点开应用</string>
+    <string name="widget_more">还有 %1$d 个</string>
+
+    <string name="err_need_aksk">请填写 AccessKey ID / SecretAccessKey</string>
+    <string name="err_need_url">请填写查询 URL</string>
+    <string name="err_need_webhook">请填写云函数 / 代理地址</string>
+    <string name="err_empty_response">响应为空</string>
+    <string name="err_no_body">无响应体</string>
+    <string name="err_bad_url">查询 URL 无效：%1$s</string>
+    <string name="err_http">HTTP %1$d：%2$s</string>
+    <string name="err_not_json">非 JSON 响应：%1$s</string>
+    <string name="err_not_json_login">该地址返回的是网页而不是额度数据，请填写控制台返回 JSON 的接口地址，或改用「云函数」。</string>
+    <string name="err_unknown">未知错误</string>
+    <string name="err_volc_failed">火山查询失败</string>
+    <string name="err_volc_not_json">火山返回非 JSON 响应：%1$s</string>
+    <string name="err_volc_api">火山 OpenAPI 报错（%1$s）：%2$s</string>
+    <string name="err_volc_auth_hint">请确认 AK/SK 是账号级凭证，且该账号具备 Ark 用量查询（OpenAPI）权限。</string>
+    <string name="err_volc_no_plan">签名已通过，但没有找到 Agent Plan / Coding Plan 额度（该账号可能未订阅）。原始响应：%1$s</string>
+    <string name="err_zhipu_api">智谱接口返回失败：%1$s</string>
+</resources>
