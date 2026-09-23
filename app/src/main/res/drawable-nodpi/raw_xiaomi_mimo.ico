@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0" />
+    <script>
+      // 与 BANNER_STORAGE_KEY（announce_banner_dismissed）保持一致；首帧前写入，避免关闭态 Banner 闪入
+      (function () {
+        try {
+          if (localStorage.getItem('announce_banner_dismissed')) {
+            document.documentElement.setAttribute('data-banner-dismissed', '1')
+          }
+        } catch (e) {}
+      })()
+    </script>
+    <style>
+      html[data-banner-dismissed='1'] [data-announce-banner] {
+        display: none !important;
+      }
+    </style>
+    
+    <title>Xiaomi MiMo 开放平台</title>
+    <meta property="og:url" content="https://platform.xiaomimimo.com/page?_v=20260528" />
+
+    <meta
+      name="description"
+      content="旗舰性能 · 全模态 · 面向专业场景优化 | 团队版 TokenPlan · 批量推理（Batch API） 现已搭载 V2.6 模型。"
+    />
+    <meta property="og:title" content="Xiaomi MiMo-V2.6 系列 3 款全新模型正式发布" />
+    <meta
+      property="og:description"
+      content="旗舰性能 · 全模态 · 面向专业场景优化 | 团队版 TokenPlan · 批量推理（Batch API） 现已搭载 V2.6 模型。"
+    />
+
+    <meta property="twitter:title" content="Xiaomi MiMo-V2.6 系列 3 款全新模型正式发布" />
+    <meta
+      property="twitter:description"
+      content="旗舰性能 · 全模态 · 面向专业场景优化 | 团队版 TokenPlan · 批量推理（Batch API） 现已搭载 V2.6 模型。"
+    />
+
+    
+    <meta name="twitter:card" content="summary_large_image" />
+    
+    <meta property="og:image" content="https://platform.xiaomimimo.com/og-image.jpg" />
+    <meta name="twitter:image" content="https://platform.xiaomimimo.com/og-image.jpg" />
+    
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+
+    <meta name="google-site-verification" content="fApb5wSvB0DyjGLkmMp1PESdGrmfOtPfyhdYUboSJzE" />
+    <style id="mimo-document-css-before"></style>
+  <link rel="icon" href="/favicon.png"><link rel="preload" href="/static/main.226a8acf741fc8ce.chunk.js" as="script"><link rel="preload" href="/static/main.b1ddfe23.chunk.css" as="style"><link rel="preload" href="/static/max.dc77b7f93e688db3.svg" as="image" type="image/svg+xml" fetchpriority="high"><link rel="preload" href="/static/MiSans-Medium.90bf93063efa3ccb.woff2" as="font" type="font/woff2" crossorigin><style id="mimo-font-misans">@font-face{font-family:'MiSans Fallback';src:local('Arial');size-adjust:106%;ascent-override:92%;descent-override:24%;line-gap-override:0%;}@font-face{font-family:'MiSans';src:url('/static/MiSans-Medium.90bf93063efa3ccb.woff2') format('woff2');font-weight:500;font-style:normal;font-display:optional;}</style></head>
+  <body>
+    <div id="root"></div>
+  <script>!function(){var e,t,n,r,o,c,a,f={58828:function(e,t,n){Promise.all([n.e(766),n.e(270)]).then(n.bind(n,35066))}},i={};function u(e){var t=i[e];if(void 0!==t)return t.exports;var n=i[e]={exports:{}};return f[e].call(n.exports,n,n.exports,u),n.exports}if(u.m=f,u.n=function(e){var t=e&&e.__esModule?function(){return e.default}:function(){return e};return u.d(t,{a:t}),t},t=Object.getPrototypeOf?function(e){return Object.getPrototypeOf(e)}:function(e){return e.__proto__},u.t=function(n,r){if(1&r&&(n=this(n)),8&r||"object"==typeof n&&n&&(4&r&&n.__esModule||16&r&&"function"==typeof n.then))return n;var o=Object.create(null);u.r(o);var c={};e=e||[null,t({}),t([]),t(t)];for(var a=2&r&&n;("object"==typeof a||"function"==typeof a)&&!~e.indexOf(a);a=t(a))Object.getOwnPropertyNames(a).forEach(function(e){c[e]=function(){return n[e]}});return c.default=function(){return n},u.d(o,c),o},u.d=function(e,t,n){var r=function(t,n){for(var r in t)if(u.o(t,r)&&!u.o(e,r)){var o={enumerable:!0};o[n]=t[r],Object.defineProperty(e,r,o)}};r(t,"get"),r(n,"value")},u.f={},u.e=function(e){return Promise.all(Object.keys(u.f).reduce(function(t,n){return u.f[n](e,t),t},[]))},u.u=function(e){return"static/"+(270===e?"main":e)+"."+({109:"5b1f3b67a5eca601",121:"94d2672f85cdfe3b",138:"cd6527d73c4a7676",150:"0369bd2477849614",160:"f2d204406a6129d6",220:"8dc94c7e69024ba4",221:"825e3c7d51b3d184",244:"ed7397befd116663",270:"226a8acf741fc8ce",279:"7d966d63ea3dc7b6",289:"e062bca1f96a4093",307:"f083ff78b35d533c",354:"eb6e93ce6da1cc4c",377:"7b5332cfbdde037a",383:"1e2a8bd8c3496898",385:"8206cd3291a15aed",389:"29157280013ac3ac",455:"de659cd4c50a4e20",487:"6772505059c03210",494:"ea21a86f1027993d",5:"390d9b6aad4efd10",527:"18a70bc906a41a15",536:"07d58b8bead4d3fd",543:"f675d58e92d969d0",548:"5652997acaec66de",583:"cf83b41e66a84a11",588:"78211ede339b9fe0",620:"d031c69d2423ccfe",655:"d89e45c4cb30bbc0",690:"7017ba51c629615d",73:"80fd6550dc12fc06",758:"3c1fb4cbbd83f52d",765:"df1fb2771996aeec",766:"a956ef82c1fee079",796:"1342fa93f9493f78",8:"ee2ba060b91eef58",838:"85ac5d882c8ea647",849:"0492b8c4f1cf43c6",870:"a360903bb19f130e",871:"5bb36abbc657a866",883:"1b4129d2f344fce1",889:"32c1eabc5e8f7c65",904:"dfd1f376d5387d04",932:"96072af4600922e2",937:"a0b309d90c85f4a3",965:"4883dc12e2b20bb9"})[e]+".chunk.js"},u.miniCssF=function(e){return"static/"+(270===e?"main":e)+"."+({138:"4eccb948",221:"7fae5c2d",270:"b1ddfe23",279:"7ce1cf08",289:"9a37004c",536:"e892e73a",548:"7badc690",588:"e27c877a",655:"548f10b4",765:"84a4ae30",766:"3b14b667",871:"f6dfabb6",904:"c73fae31",965:"3b3c30a7"})[e]+".chunk.css"},u.g=function(){if("object"==typeof globalThis)return globalThis;try{return this||Function("return this")()}catch(e){if("object"==typeof window)return window}}(),u.o=function(e,t){return Object.prototype.hasOwnProperty.call(e,t)},n={},r="mimo_document:",u.l=function(e,t,o,c){if(n[e])return void n[e].push(t);if(void 0!==o)for(var a,f,i=document.getElementsByTagName("script"),d=0;d<i.length;d++){var b=i[d];if(b.getAttribute("src")==e||b.getAttribute("data-rspack")==r+o){a=b;break}}a||(f=!0,(a=document.createElement("script")).timeout=120,u.nc&&a.setAttribute("nonce",u.nc),a.setAttribute("data-rspack",r+o),a.src=e,0!==a.src.indexOf(window.location.origin+"/")&&(a.crossOrigin="anonymous")),n[e]=[t];var l=function(t,r){a.onerror=a.onload=null,clearTimeout(s);var o=n[e];if(delete n[e],a.parentNode&&a.parentNode.removeChild(a),o&&o.forEach(function(e){return e(r)}),t)return t(r)},s=setTimeout(l.bind(null,void 0,{type:"timeout",target:a}),12e4);a.onerror=l.bind(null,a.onerror),a.onload=l.bind(null,a.onload),f&&document.head.appendChild(a)},u.r=function(e){"u">typeof Symbol&&Symbol.toStringTag&&Object.defineProperty(e,Symbol.toStringTag,{value:"Module"}),Object.defineProperty(e,"__esModule",{value:!0})},u.p="/","u">typeof document){var d=function(e,t,n,r,o,c){var a=document.createElement("link");return a.rel="stylesheet",a.type="text/css",u.nc&&(a.nonce=u.nc),a.href=t,0!==a.href.indexOf(window.location.origin+"/")&&(a.crossOrigin="anonymous"),a.onerror=a.onload=function(n){if(a.onerror=a.onload=null,"load"===n.type)r();else{var c=n&&("load"===n.type?"missing":n.type),f=n&&n.target&&n.target.href||t,i=Error("Loading CSS chunk "+e+" failed.\\n("+f+")");i.code="CSS_CHUNK_LOAD_FAILED",i.type=c,i.request=f,a.parentNode&&a.parentNode.removeChild(a),o(i)}},n?n.parentNode.insertBefore(a,n.nextSibling):document.head.appendChild(a),a},b=function(e,t){for(var n=document.getElementsByTagName("link"),r=0;r<n.length;r++){var o=n[r],c=o.getAttribute("data-href")||o.getAttribute("href");if(c&&(c=c.split("?")[0]),"stylesheet"===o.rel&&(c===e||c===t))return o}for(var a=document.getElementsByTagName("style"),r=0;r<a.length;r++){var o=a[r],c=o.getAttribute("data-href");if(c===e||c===t)return o}},l={474:0};u.f.miniCss=function(e,t,n){if(l[e])t.push(l[e]);else 0!==l[e]&&({138:1,221:1,270:1,279:1,289:1,536:1,548:1,588:1,655:1,765:1,766:1,871:1,904:1,965:1})[e]&&t.push(l[e]=new Promise(function(t,r){var o=u.miniCssF(e),c=u.p+o;if(b(o,c))return t();d(e,c,null,t,r,n)}).then(function(){l[e]=0},function(t){throw delete l[e],t}))}}o={474:0},u.f.j=function(e,t){var n=u.o(o,e)?o[e]:void 0;if(0!==n)if(n)t.push(n[2]);else{var r=new Promise(function(t,r){n=o[e]=[t,r]});t.push(n[2]=r);var c=u.p+u.u(e),a=Error();u.l(c,function(t){if(u.o(o,e)&&(0!==(n=o[e])&&(o[e]=void 0),n)){var r=t&&("load"===t.type?"missing":t.type),c=t&&t.target&&t.target.src;a.message="Loading chunk "+e+" failed.\n("+r+": "+c+")",a.name="ChunkLoadError",a.type=r,a.request=c,n[1](a)}},"chunk-"+e,e)}},c=function(e,t){var n,r,c=t[0],a=t[1],f=t[2],i=0;if(c.some(function(e){return 0!==o[e]})){for(n in a)u.o(a,n)&&(u.m[n]=a[n]);f&&f(u)}for(e&&e(t);i<c.length;i++)r=c[i],u.o(o,r)&&o[r]&&o[r][0](),o[r]=0},(a=self.rspackChunkmimo_document=self.rspackChunkmimo_document||[]).forEach(c.bind(null,0)),a.push=c.bind(null,a.push.bind(a)),u(58828)}();</script></body>
+  
+</html>

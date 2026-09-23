@@ -404,7 +404,7 @@ private fun AccountRow(
             .padding(14.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        VendorBadge(short = tpl.id.take(2).uppercase(), color = tpl.color)
+        VendorBadge(short = tpl.id.take(2).uppercase(), color = tpl.color, templateId = tpl.id)
         Spacer(Modifier.size(12.dp))
         Column(Modifier.weight(1f)) {
             Text(account.name, fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.onSurface)
@@ -464,7 +464,7 @@ private fun DetailScreen(
         SectionCard {
             Column {
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    VendorBadge(short = tpl.id.take(2).uppercase(), color = tpl.color)
+                    VendorBadge(short = tpl.id.take(2).uppercase(), color = tpl.color, templateId = tpl.id)
                     Spacer(Modifier.size(12.dp))
                     Column(Modifier.weight(1f)) {
                         Text(vendorName, fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
@@ -652,7 +652,7 @@ private fun CatalogScreen(onPick: (Template) -> Unit) {
                     .padding(14.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                VendorBadge(short = t.id.take(2).uppercase(), color = t.color)
+                VendorBadge(short = t.id.take(2).uppercase(), color = t.color, templateId = t.id)
                 Spacer(Modifier.size(12.dp))
                 Column(Modifier.weight(1f)) {
                     Text(stringResource(t.nameRes), fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.onSurface)

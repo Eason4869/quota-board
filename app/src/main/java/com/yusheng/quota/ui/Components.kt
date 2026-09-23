@@ -18,8 +18,11 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.foundation.Image
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -30,9 +33,33 @@ import com.yusheng.quota.data.Period
 import com.yusheng.quota.ui.theme.PeriodColors
 import kotlin.math.roundToInt
 
-/** 厂商色块（Kotlin 端用品牌色 + 简称；官网图标见 assets/logos） */
+/** templateId → 官网 Logo 资源（vector / png） */
+fun logoResFor(templateId: String): Int = when (templateId) {
+    "xiaomi" -> R.drawable.logo_xiaomi
+    "volc_agent", "volc_coding" -> R.drawable.logo_volc
+    "kimi" -> R.drawable.logo_kimi
+    "zhipu" -> R.drawable.logo_zhipu
+    "minimax" -> R.drawable.logo_minimax
+    "opencode_go" -> R.drawable.logo_opencode
+    "deepseek" -> R.drawable.logo_deepseek
+    "siliconflow" -> R.drawable.logo_siliconflow
+    "stepfun" -> R.drawable.logo_stepfun
+    "novita" -> R.drawable.logo_novita
+    "claude" -> R.drawable.logo_claude
+    "gemini" -> R.drawable.logo_gemini
+    "openai" -> R.drawable.logo_openai
+    "openrouter" -> R.drawable.logo_openrouter
+    else -> R.drawable.logo_generic
+}
+
+/** 厂商徽章：有官网 Logo 时显示真实图标，否则回落字母简称 */
 @Composable
-fun VendorBadge(short: String, color: Long, size: Int = 42) {
+fun VendorBadge(
+    short: String,
+    color: Long,
+    size: Int = 42,
+    templateId: String? = null,
+) {
     Box(
         modifier = Modifier
             .size(size.dp)
@@ -41,12 +68,21 @@ fun VendorBadge(short: String, color: Long, size: Int = 42) {
             .border(1.dp, Color(color).copy(alpha = 0.35f), RoundedCornerShape(14.dp)),
         contentAlignment = Alignment.Center,
     ) {
-        Text(
-            text = short,
-            color = Color(color),
-            fontSize = (size / 3).sp,
-            fontWeight = FontWeight.Bold,
-        )
+        if (templateId != null) {
+            Image(
+                painter = painterResource(logoResFor(templateId)),
+                contentDescription = null,
+                modifier = Modifier.size((size * 0.62f).toInt().dp),
+                contentScale = ContentScale.Fit,
+            )
+        } else {
+            Text(
+                text = short,
+                color = Color(color),
+                fontSize = (size / 3).sp,
+                fontWeight = FontWeight.Bold,
+            )
+        }
     }
 }
 
