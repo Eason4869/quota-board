@@ -1,9 +1,36 @@
+import java.util.Properties
+
 plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
     id("org.jetbrains.kotlin.plugin.compose")
     id("org.jetbrains.kotlin.plugin.serialization")
 }
+
+// ── 发布签名 ──────────────────────────────────────────────
+// 优先读环境变量（CI 用 Secrets 注入），其次读工程根目录的 keystore.properties（本地构建），
+// 两者都没有时回退 debug 签名，保证任何环境都能编译出 APK。
+val keystorePropertiesFile = rootProject.file("keystore.properties")
+val keystoreProperties = Properties()
+if (keystorePropertiesFile.exists()) {
+    keystorePropertiesFile.inputStream().use { stream -> keystoreProperties.load(stream) }
+}
+
+fun signingValue(propKey: String, envKey: String): String? {
+    val fromEnv = System.getenv(envKey)
+    if (!fromEnv.isNullOrBlank()) return fromEnv
+    val fromFile = keystoreProperties.getProperty(propKey)
+    return if (fromFile.isNullOrBlank()) null else fromFile
+}
+
+val releaseStoreFile = signingValue("storeFile", "KEYSTORE_PATH")
+    ?.let { path -> rootProject.file(path) }
+    ?.takeIf { file -> file.exists() }
+
+val hasReleaseSigning = releaseStoreFile != null &&
+    signingValue("storePassword", "KEYSTORE_PASSWORD") != null &&
+    signingValue("keyAlias", "KEY_ALIAS") != null &&
+    signingValue("keyPassword", "KEY_PASSWORD") != null
 
 android {
     namespace = "com.yusheng.quota"
@@ -13,9 +40,20 @@ android {
         applicationId = "com.yusheng.quota"
         minSdk = 26
         targetSdk = 35
-        versionCode = 2
-        versionName = "1.1.0"
+        versionCode = 3
+        versionName = "1.1.1"
         resourceConfigurations += listOf("en", "zh-rCN")
+    }
+
+    signingConfigs {
+        if (hasReleaseSigning) {
+            create("release") {
+                storeFile = releaseStoreFile
+                storePassword = signingValue("storePassword", "KEYSTORE_PASSWORD")
+                keyAlias = signingValue("keyAlias", "KEY_ALIAS")
+                keyPassword = signingValue("keyPassword", "KEY_PASSWORD")
+            }
+        }
     }
 
     buildTypes {
@@ -26,8 +64,11 @@ android {
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
             )
-            // 便于开源分发：debug 签名可覆盖，使用者自行替换为自己的 keystore
-            signingConfig = signingConfigs.getByName("debug")
+            signingConfig = if (hasReleaseSigning) {
+                signingConfigs.getByName("release")
+            } else {
+                signingConfigs.getByName("debug")
+            }
         }
     }
 
