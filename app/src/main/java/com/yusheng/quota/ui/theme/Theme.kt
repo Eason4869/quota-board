@@ -115,22 +115,48 @@ object Glass {
     /**
      * Dock 专用玻璃填充：比卡片更通透（浅色下也不发白成一块），
      * 顶部略亮、底部略暗，模拟玻璃的厚度。
+     *
+     * 注意：下面三个「dock*」成员与 highlight()/stroke() 是**分开的两套**。
+     * Dock 的高光是叠在填充之上的，调通透度时必须两个一起降；
+     * 卡片用的是另一套，别混用，否则调 Dock 会连带把卡片也改掉。
      */
     @Composable
     fun dockFill(): Brush =
         if (isDark()) {
             Brush.verticalGradient(
-                0f to Color.White.copy(alpha = 0.09f),
-                0.5f to Color.White.copy(alpha = 0.055f),
-                1f to Color.White.copy(alpha = 0.035f),
+                0f to Color.White.copy(alpha = 0.075f),
+                0.5f to Color.White.copy(alpha = 0.048f),
+                1f to Color.White.copy(alpha = 0.030f),
             )
         } else {
             Brush.verticalGradient(
-                0f to Color.White.copy(alpha = 0.48f),
-                0.5f to Color.White.copy(alpha = 0.34f),
-                1f to Color.White.copy(alpha = 0.26f),
+                0f to Color.White.copy(alpha = 0.30f),
+                0.5f to Color.White.copy(alpha = 0.20f),
+                1f to Color.White.copy(alpha = 0.14f),
             )
         }
+
+    /** Dock 顶部高光：Dock 专用，比卡片那套弱一档，避免和 dockFill 叠加后发白 */
+    @Composable
+    fun dockHighlight(): Brush =
+        if (isDark()) {
+            Brush.verticalGradient(
+                0f to Color.White.copy(alpha = 0.12f),
+                0.45f to Color.White.copy(alpha = 0.03f),
+                1f to Color.Transparent,
+            )
+        } else {
+            Brush.verticalGradient(
+                0f to Color.White.copy(alpha = 0.26f),
+                0.45f to Color.White.copy(alpha = 0.06f),
+                1f to Color.Transparent,
+            )
+        }
+
+    /** Dock 描边：比卡片更细软，浅色下不再是一圈实白（那会显得像塑料而不是玻璃） */
+    @Composable
+    fun dockStroke(): Color =
+        if (isDark()) Color.White.copy(alpha = 0.16f) else Color.White.copy(alpha = 0.50f)
 
     private fun Color.luminance(): Float = (0.299f * red + 0.587f * green + 0.114f * blue)
 }

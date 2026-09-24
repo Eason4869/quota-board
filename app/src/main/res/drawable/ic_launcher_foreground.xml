@@ -1,28 +1,28 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- 额度台图标：八向辐条 + 一个方块缺口，喻「用量刻度盘」 -->
+<!--
+  额度台图标：指针式刻度盘。
+  270° 等宽圆环（缺口朝正上方）+ 一根指向缺口的指针，纯线条、无填充色块。
+  几何落在自适应图标安全区内：外缘半径 27.5 < 33（占 66dp 安全区的 83%），
+  圆头端帽让它在 24px 下仍能分辨出「环 + 针」。
+  环与指针同宽 6.0，改线宽只需动这一个数（两端圆头半径 = 线宽一半）。
+-->
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
     android:width="108dp"
     android:height="108dp"
     android:viewportWidth="108"
     android:viewportHeight="108">
 
-    <group android:translateX="54" android:translateY="54">
-        <!-- 8 根辐条（灰度石版色），半径 14 → 26 -->
-        <path android:fillColor="#5A6472" android:pathData="M-2.6,-26 h5.2 v12 h-5.2 z" />
-        <path android:fillColor="#5A6472" android:pathData="M-2.6,14 h5.2 v12 h-5.2 z" />
-        <path android:fillColor="#5A6472" android:pathData="M-26,-2.6 h12 v5.2 h-12 z" />
-        <path android:fillColor="#5A6472" android:pathData="M14,-2.6 h12 v5.2 h-12 z" />
+    <!-- 圆环：自右上(315°)顺时针 270° 至左上(225°)，缺口 90° 朝上 -->
+    <path
+        android:pathData="M71.324,36.676 A24.5,24.5 0 1 1 36.676,36.676"
+        android:strokeColor="#33383F"
+        android:strokeWidth="6.0"
+        android:strokeLineCap="round" />
 
-        <group android:pivotX="0" android:pivotY="0" android:rotation="45">
-            <path android:fillColor="#5A6472" android:pathData="M-2.6,-26 h5.2 v12 h-5.2 z" />
-            <path android:fillColor="#5A6472" android:pathData="M-2.6,14 h5.2 v12 h-5.2 z" />
-            <path android:fillColor="#5A6472" android:pathData="M-26,-2.6 h12 v5.2 h-12 z" />
-        </group>
-
-        <!-- 右上角替换为方块缺口：表示刻度停在某档 -->
-        <path android:fillColor="#5A6472" android:pathData="M12,-24 h12 v12 h-12 z" />
-
-        <!-- 中心圆点 -->
-        <path android:fillColor="#5A6472" android:pathData="M-4,-4 h8 v8 h-8 z" />
-    </group>
+    <!-- 指针：自圆心指向缺口，用主色橙，全图唯一一处彩色 -->
+    <path
+        android:pathData="M54,54 L64.607,43.393"
+        android:strokeColor="#FF6900"
+        android:strokeWidth="6.0"
+        android:strokeLineCap="round" />
 </vector>

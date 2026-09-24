@@ -13,9 +13,8 @@ import com.yusheng.quota.data.Templates
 import com.yusheng.quota.net.QueryEngine
 import com.yusheng.quota.net.Parsers
 import com.yusheng.quota.update.UpdateChecker
-import com.yusheng.quota.widget.QuotaWidget
-import com.yusheng.quota.widget.QuotaWidgetWorker
 import com.yusheng.quota.BuildConfig
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableSharedFlow
@@ -74,8 +73,6 @@ class QuotaViewModel(app: Application) : AndroidViewModel(app) {
     private var autoRefreshJob: Job? = null
 
     init {
-        // 后台小组件刷新间隔跟随设置
-        QuotaWidgetWorker.schedule(app, _state.value.settings.autoRefreshMinutes)
         if (_state.value.settings.autoQueryOnStart && _state.value.accounts.isNotEmpty()) {
             refreshAll()
         }
@@ -171,6 +168,9 @@ class QuotaViewModel(app: Application) : AndroidViewModel(app) {
         )
     }
 
+    /** 镜像链全没走通时的兜底出口：把用户送去浏览器里的 Release 页 */
+    fun openReleasePage() = UpdateChecker.openReleasePage(getApplication())
+
     fun account(id: String?): Account? = _state.value.accounts.firstOrNull { it.id == id }
 
     fun setActive(id: String?) {
@@ -191,20 +191,33 @@ class QuotaViewModel(app: Application) : AndroidViewModel(app) {
             // 还没查过就不能算「已同步」，留给 refresh() 写时间戳
             updatedAt = 0L,
         )
-        persist(_state.value.accounts + account)
+        persist { it + account }
         return account
     }
 
+    /**
+     * 保存编辑。用户能改的只有名字 / 厂商 / 查询配置，其余字段（result、lastError、
+     * updatedAt）保持磁盘上的最新值——编辑页停留期间刷新可能刚写回一份新结果，
+     * 别被编辑页手里那份旧对象抹掉。
+     */
     fun updateAccount(account: Account) {
-        persist(_state.value.accounts.map { if (it.id == account.id) account else it })
+        persist { list ->
+            list.map {
+                if (it.id != account.id) {
+                    it
+                } else {
+                    it.copy(name = account.name, templateId = account.templateId, query = account.query)
+                }
+            }
+        }
     }
 
     fun deleteAccount(id: String) {
-        persist(_state.value.accounts.filterNot { it.id == id })
+        persist { list -> list.filterNot { it.id == id } }
         if (_state.value.activeId == id) setActive(null)
     }
 
-    fun clearAccounts() = persist(emptyList())
+    fun clearAccounts() = persist { emptyList() }
 
     /** 导出 JSON（含凭证，提示用户妥善保管） */
     fun exportPayload(): String =
@@ -213,40 +226,55 @@ class QuotaViewModel(app: Application) : AndroidViewModel(app) {
     fun updateSettings(settings: Settings) {
         store.saveSettings(settings)
         _state.value = _state.value.copy(settings = settings)
-        QuotaWidgetWorker.schedule(getApplication(), settings.autoRefreshMinutes)
         restartAutoRefresh()
     }
 
     fun importJson(accounts: List<Account>, settings: Settings) {
         store.saveSettings(settings)
         _state.value = _state.value.copy(settings = settings)
-        persist(accounts)
-        QuotaWidgetWorker.schedule(getApplication(), settings.autoRefreshMinutes)
+        // 导入本来就是整表替换：忽略磁盘上的旧列表，直接落这份
+        persist { accounts }
         restartAutoRefresh()
     }
 
-    /** 查询单个账户 */
+    /**
+     * 查询单个账户。
+     * 请求前后隔着一次网络往返，期间用户可能改了配置、删了账户，或者自动刷新
+     * 刚把同一账户的结果写回。所以这里只把**结果**带出来，落库时按 id 合并到
+     * 磁盘上的最新版本，而不是拿请求前那份快照整条盖回去。
+     */
     fun refresh(id: String) {
         val account = account(id) ?: return
         _state.value = _state.value.copy(querying = _state.value.querying + id)
         viewModelScope.launch {
             var error: String? = null
-            val updated = try {
-                val result = engine.query(
+            val result = try {
+                engine.query(
                     template = Templates.byId(account.templateId),
                     cfg = account.query,
                     defaultTimeoutSec = _state.value.settings.timeoutSec,
                 )
-                account.copy(result = result, lastError = null, updatedAt = System.currentTimeMillis())
+            } catch (e: CancellationException) {
+                // 协程被取消（页面销毁等）不是查询失败，别把它写成一次错误结果
+                throw e
             } catch (e: Exception) {
                 error = e.message ?: e.toString()
-                account.copy(lastError = error, updatedAt = System.currentTimeMillis())
+                null
             }
-            val list = _state.value.accounts.map { if (it.id == id) updated else it }
-            store.saveAccounts(list)
-            _state.value = _state.value.copy(accounts = list, querying = _state.value.querying - id)
-            // 查询完成后立即刷新桌面小组件
-            runCatching { QuotaWidget.refreshAll(getApplication()) }
+            val now = System.currentTimeMillis()
+            val merged = store.patchAccount(id) { fresh ->
+                if (result != null) {
+                    fresh.copy(result = result, lastError = null, updatedAt = now)
+                } else {
+                    // 失败时保留上一次的结果，只记错误与时间
+                    fresh.copy(lastError = error, updatedAt = now)
+                }
+            }
+            _state.value = _state.value.copy(
+                // merged 为 null 说明这期间账户被删了：跟着从内存里去掉，别复活它
+                accounts = merged ?: _state.value.accounts.filterNot { it.id == id },
+                querying = _state.value.querying - id,
+            )
             _events.tryEmit(Event.QueryFinished(id, error))
         }
     }
@@ -263,25 +291,25 @@ class QuotaViewModel(app: Application) : AndroidViewModel(app) {
     fun applyJson(id: String, json: String) {
         val account = account(id) ?: return
         viewModelScope.launch {
-            val error = runCatching {
-                val parsed = Parsers.parse(
+            val parsed = runCatching {
+                Parsers.parse(
                     templateId = account.templateId,
                     json = org.json.JSONObject(json),
                     mapBalance = account.query.mapBalance,
                     mapPlan = account.query.mapPlan,
                     context = getApplication(),
                 )
-                val updated = account.copy(
-                    result = parsed,
-                    lastError = null,
-                    updatedAt = System.currentTimeMillis(),
+            }
+            val now = System.currentTimeMillis()
+            // 同样按 id 合并：解析失败的记录错误、保留旧结果，其余字段以磁盘为准
+            val merged = store.patchAccount(id) { fresh ->
+                parsed.fold(
+                    onSuccess = { fresh.copy(result = it, lastError = null, updatedAt = now) },
+                    onFailure = { fresh.copy(lastError = it.message, updatedAt = now) },
                 )
-                val list = _state.value.accounts.map { if (it.id == id) updated else it }
-                store.saveAccounts(list)
-                _state.value = _state.value.copy(accounts = list)
-                runCatching { QuotaWidget.refreshAll(getApplication()) }
-            }.exceptionOrNull()
-            _events.tryEmit(Event.QueryFinished(id, error?.message))
+            }
+            if (merged != null) _state.value = _state.value.copy(accounts = merged)
+            _events.tryEmit(Event.QueryFinished(id, parsed.exceptionOrNull()?.message))
         }
     }
 
@@ -298,8 +326,12 @@ class QuotaViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
-    private fun persist(accounts: List<Account>) {
-        store.saveAccounts(accounts)
-        _state.value = _state.value.copy(accounts = accounts)
+    /**
+     * 账户列表的事务性改动：交给 [Store.mutateAccounts] 基于**磁盘上的最新列表**
+     * 现算后写回，再把结果同步进内存。不要用 `_state.value.accounts` 当输入——
+     * 内存里那份可能落后于磁盘，拿它整表覆盖会把别人的写入抹掉。
+     */
+    private fun persist(transform: (List<Account>) -> List<Account>) {
+        _state.value = _state.value.copy(accounts = store.mutateAccounts(transform))
     }
 }

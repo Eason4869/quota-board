@@ -5,6 +5,3 @@
 -keepclasseswithmembers class com.yusheng.quota.data.** {
     kotlinx.serialization.KSerializer serializer(...);
 }
-
-# Glance / Widget
--keep class androidx.glance.** { *; }

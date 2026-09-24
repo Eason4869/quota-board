@@ -82,10 +82,6 @@
     <string name="about_privacy">隐私</string>
     <string name="about_privacy_body">额度数据来自各厂商官方接口、云函数或你的登录态，本应用不上传任何数据。API Key 与 Cookie 仅保存在本机；导出 JSON 请自行妥善保管。</string>
 
-    <!-- Widget -->
-    <string name="widget_label">额度台</string>
-    <string name="widget_desc">在桌面查看余额与周期用量</string>
-
     <!-- Vendors -->
     <string name="vendor_xiaomi">小米 MiMo</string>
     <string name="vendor_xiaomi_desc">Token Plan + 按量</string>
@@ -169,7 +165,8 @@
     <string name="update_size">安装包 %1$s</string>
     <string name="update_downloading">下载中… %1$d%%</string>
     <string name="update_need_permission">请先允许本应用「安装未知应用」，然后再次点安装。</string>
-    <string name="update_download_failed">下载失败，请重试。</string>
+    <string name="update_download_failed">直连与各镜像都下载失败了。</string>
+    <string name="update_open_browser">改用浏览器下载</string>
     <string name="update_install_failed">无法调起安装器，可到文件管理器手动安装已下载的 APK。</string>
     <string name="update_check_failed">检查更新失败，请检查网络。</string>
     <string name="update_up_to_date">已是最新版本</string>
@@ -202,10 +199,6 @@
     <string name="vendor_stepfun_desc">账户余额</string>
     <string name="vendor_novita">Novita AI</string>
     <string name="vendor_novita_desc">账户余额</string>
-
-    <string name="widget_empty">额度台 · 还没有账户</string>
-    <string name="widget_tap_open">点开应用</string>
-    <string name="widget_more">还有 %1$d 个</string>
 
     <string name="err_need_aksk">请填写 AccessKey ID / SecretAccessKey</string>
     <string name="err_need_url">请填写查询 URL</string>

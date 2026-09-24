@@ -161,10 +161,17 @@ fun LoginCaptureScreen(
             val pageWidth = raw?.trim('"')?.toFloatOrNull() ?: 0f
             if (pageWidth <= 0f) return@evaluateJavascript
             val visibleCss = viewWidth / density
-            val scale = (visibleCss / pageWidth * 100f).toInt().coerceIn(25, 150)
-            wv.setInitialScale(scale)
-            status = "$fitText ${scale}%"
-            wv.reload()
+            // 原来用 setInitialScale + reload，两处都不对：
+            //  1. 页面自带 <meta viewport> 时 setInitialScale 会被忽略，而桌面版控制台正好都有
+            //     —— 也就是对最需要适配的页面它是空操作
+            //  2. reload 会把用户正在填的表单清空，而紧接着的 onPageFinished 又会把提示抹掉
+            // 改成直接改 documentElement 的 CSS zoom：不挑 viewport，也不用重载页面
+            val scale = (visibleCss / pageWidth).coerceIn(0.25f, 1.5f)
+            wv.evaluateJavascript(
+                "(function(){document.documentElement.style.zoom='$scale';" +
+                    "return String(document.documentElement.scrollWidth);})()"
+            ) { _ -> }
+            status = "$fitText ${(scale * 100).toInt()}%"
         }
     }
 
@@ -285,13 +292,14 @@ fun LoginCaptureScreen(
                                         CookieManager.getInstance().getCookie(url)?.let { cookie = it }
                                     }
                                     progress = 100
-                                    status = ""
-                                    // 空白页检测：内容太少说明布局/脚本没跑起来，给出手动兜底提示
+                                    // 空白页检测：内容太少说明布局/脚本没跑起来，给出手动兜底提示。
+                                    // 注意别在这里无条件 status = ""：上一步的错误提示会被立刻
+                                    // 抹掉，用户根本来不及看到，只有页面真画出内容才该清空
                                     view?.evaluateJavascript(
                                         "(function(){return String((document.body&&document.body.innerText||'').trim().length);})()"
                                     ) { len ->
                                         val n = len?.trim('"')?.toIntOrNull() ?: 0
-                                        if (n < 40) status = blankHint
+                                        status = if (n < 40) blankHint else ""
                                     }
                                 }
 
@@ -347,9 +355,20 @@ fun LoginCaptureScreen(
                                     return true
                                 }
                             }
-                            loadUrl(startUrl)
+                            // 渲染进程被回收后重建时用 currentUrl，回到崩溃时所在的页面
+                            // 而不是入口页（否则登录到一半会被打回首页）
+                            loadUrl(currentUrl.ifBlank { startUrl })
                             webView.value = this
                         }
+                    },
+                    // WebView 必须显式销毁：它持有 Activity context 与正在跑的 JS 定时器，
+                    // 只从组合里移除不会释放，每次登录都会漏一个。
+                    // 这里不调 loadUrl（实例可能已被 onRenderProcessGone 销毁过，对已销毁的
+                    // WebView 调任何方法行为都未定义）。
+                    onRelease = { wv ->
+                        runCatching { wv.stopLoading() }
+                        runCatching { wv.destroy() }
+                        if (webView.value === wv) webView.value = null
                     },
                     modifier = Modifier.fillMaxSize(),
                 )

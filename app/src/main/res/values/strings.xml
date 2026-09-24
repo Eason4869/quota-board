@@ -82,10 +82,6 @@
     <string name="about_privacy">Privacy</string>
     <string name="about_privacy_body">Quota data comes from official APIs, cloud functions or your logged-in session. Nothing is uploaded by this app. API keys and cookies stay in local storage; keep exported JSON safe.</string>
 
-    <!-- Widget -->
-    <string name="widget_label">QuotaBoard</string>
-    <string name="widget_desc">Balance and usage windows on your home screen</string>
-
     <!-- Vendors -->
     <string name="vendor_xiaomi">Xiaomi MiMo</string>
     <string name="vendor_xiaomi_desc">Token Plan + pay-as-you-go</string>
@@ -173,7 +169,8 @@
     <string name="update_size">Package size %1$s</string>
     <string name="update_downloading">Downloading… %1$d%%</string>
     <string name="update_need_permission">Allow “Install unknown apps” for QuotaBoard, then tap Install again.</string>
-    <string name="update_download_failed">Download failed. Please retry.</string>
+    <string name="update_download_failed">Download failed on every source (direct + mirrors).</string>
+    <string name="update_open_browser">Download in browser instead</string>
     <string name="update_install_failed">Could not open the installer. You can install the downloaded APK manually.</string>
     <string name="update_check_failed">Update check failed — check your network.</string>
     <string name="update_up_to_date">Already up to date</string>
@@ -208,11 +205,6 @@
     <string name="vendor_stepfun_desc">Account balance</string>
     <string name="vendor_novita">Novita AI</string>
     <string name="vendor_novita_desc">Account balance</string>
-
-    <!-- Widget -->
-    <string name="widget_empty">QuotaBoard · no accounts</string>
-    <string name="widget_tap_open">Tap to open</string>
-    <string name="widget_more">+%1$d more</string>
 
     <!-- Query errors -->
     <string name="err_need_aksk">Please fill in AccessKey ID / SecretAccessKey</string>

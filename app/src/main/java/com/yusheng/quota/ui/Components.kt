@@ -17,7 +17,6 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -71,6 +70,9 @@ fun logoResFor(templateId: String): Int = when (templateId) {
     else -> R.drawable.logo_generic
 }
 
+/** Dock 占屏宽的比例：1f = 满屏。想再调长短**只改这一个数**即可 */
+private const val DockWidthFraction = 0.8f
+
 /**
  * 液态玻璃 Dock：只有胶囊本体有材质与描边，**四周完全透明**，
  * 页面内容可以从下方穿过（配合调用方的底部内边距，不会被挡）。
@@ -85,8 +87,10 @@ fun GlassBottomBar(current: Int, onSelect: (Int) -> Unit) {
     val shape = RoundedCornerShape(26.dp)
     Box(
         Modifier
-            // 横向长度取中：比「仅包住图标」略长，又不像整条底栏那样占满
-            .widthIn(min = 180.dp)
+            // 原来这里是 widthIn(min = 180.dp)，但那只设了**下限**：里面的
+            // Row(fillMaxWidth) 会去填父级最大约束（= 屏幕宽），所以那 180dp 从来没生效过，
+            // Dock 实际是接近满屏宽的。要「短 20%」得按屏宽比例来
+            .fillMaxWidth(DockWidthFraction)
             .shadow(
                 elevation = 10.dp,
                 shape = shape,
@@ -98,8 +102,8 @@ fun GlassBottomBar(current: Int, onSelect: (Int) -> Unit) {
             .background(Glass.dockFill()),
     ) {
         // 玻璃质感：顶部高光渐变 + 高光描边（只覆盖胶囊本体，不铺满屏幕）
-        Box(Modifier.matchParentSize().background(Glass.highlight()))
-        Box(Modifier.matchParentSize().border(1.2.dp, Glass.stroke(), shape))
+        Box(Modifier.matchParentSize().background(Glass.dockHighlight()))
+        Box(Modifier.matchParentSize().border(1.dp, Glass.dockStroke(), shape))
         Row(
             modifier = Modifier
                 .fillMaxWidth()
@@ -295,16 +299,6 @@ fun periodLabel(raw: String): String = when (raw.lowercase()) {
     "daily", "day", "24h" -> stringResource(R.string.window_day)
     else -> raw
 }
-
-/** 非 Composable 场景（小组件）用 */
-fun periodLabelPlain(day: String, week: String, month: String, fiveHour: String, raw: String): String =
-    when (raw.lowercase()) {
-        "5h", "session", "five_hour", "fivehour", "rolling", "rolling_5h" -> fiveHour
-        "weekly", "week", "7d" -> week
-        "monthly", "month" -> month
-        "daily", "day", "24h" -> day
-        else -> raw
-    }
 
 @Composable
 fun relTime(ts: Long): String {

@@ -32,6 +32,16 @@ val hasReleaseSigning = releaseStoreFile != null &&
     signingValue("keyAlias", "KEY_ALIAS") != null &&
     signingValue("keyPassword", "KEY_PASSWORD") != null
 
+// 回退 debug 签名是为了「任何环境都能编出 APK」，但 release 包一旦用 debug 密钥发出去，
+// 装了正式签名版的用户就只能卸载重装（签名不匹配），所以至少要让这次构建叫一声。
+// CI 的 tag 构建里这是硬失败（见 .github/workflows/build.yml），不走这条警告。
+if (!hasReleaseSigning && gradle.startParameter.taskNames.any { it.contains("release", true) }) {
+    logger.warn(
+        "⚠️ 未配置发布签名（KEYSTORE_PATH/KEYSTORE_PASSWORD/KEY_ALIAS/KEY_PASSWORD 或 keystore.properties）。" +
+            "本次 assembleRelease 会用 debug 密钥签名，产物无法覆盖安装正式版。"
+    )
+}
+
 android {
     namespace = "com.yusheng.quota"
     compileSdk = 35
@@ -40,8 +50,8 @@ android {
         applicationId = "com.yusheng.quota"
         minSdk = 26
         targetSdk = 35
-        versionCode = 12
-        versionName = "1.2.12"
+        versionCode = 13
+        versionName = "1.2.13"
         resourceConfigurations += listOf("en", "zh-rCN")
     }
 
@@ -107,10 +117,6 @@ dependencies {
     implementation("androidx.compose.material:material-icons-extended")
 
     implementation("androidx.navigation:navigation-compose:2.8.1")
-
-    // 桌面小组件
-    implementation("androidx.glance:glance-appwidget:1.1.0")
-    implementation("androidx.work:work-runtime-ktx:2.9.1")
 
     // JSON
     implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.7.3")

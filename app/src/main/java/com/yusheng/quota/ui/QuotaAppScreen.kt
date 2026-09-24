@@ -2,7 +2,6 @@ package com.yusheng.quota.ui
 
 import androidx.compose.foundation.background
 import androidx.compose.animation.AnimatedContent
-import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -382,25 +381,24 @@ fun QuotaAppRoot(vm: QuotaViewModel) {
             }
         }
 
-        // 登录抓取：盖在配置页之上，保证配置页状态不丢
-        AnimatedVisibility(
-            visible = loginRequest != null,
-            enter = fadeIn(tween(180)),
-            exit = fadeOut(tween(150)),
-        ) {
-            loginRequest?.let { req ->
-                Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
-                    LoginCaptureScreen(
-                        startUrl = req.loginUrl,
-                        fetchUrl = req.fetchUrl,
-                        onCancel = { loginRequest = null },
-                        onCaptured = { cookie, json ->
-                            req.onResult(cookie, json)
-                            loginRequest = null
-                            vm.emit(ctx.getString(R.string.toast_cookie_captured))
-                        },
-                    )
-                }
+        // 登录抓取：盖在配置页之上，保证配置页状态不丢。
+        //
+        // 这里**不能用 AnimatedVisibility/fadeIn 包住**：alpha 动画会把整棵子树放进一个
+        // 带透明度的合成层，而 WebView 是硬件图层合成，在那个层里会整体画成黑屏或白屏
+        // （且退出动画期间子树仍在组合，WebView 也没机会销毁）。登录页要动效就只动顶栏。
+        val loginReq = loginRequest
+        if (loginReq != null) {
+            Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
+                LoginCaptureScreen(
+                    startUrl = loginReq.loginUrl,
+                    fetchUrl = loginReq.fetchUrl,
+                    onCancel = { loginRequest = null },
+                    onCaptured = { cookie, json ->
+                        loginReq.onResult(cookie, json)
+                        loginRequest = null
+                        vm.emit(ctx.getString(R.string.toast_cookie_captured))
+                    },
+                )
             }
         }
 
@@ -457,6 +455,21 @@ fun QuotaAppRoot(vm: QuotaViewModel) {
                                     fontSize = 12.sp,
                                     color = Color(0xFFFF5A6E),
                                 )
+                                // 直连和几个镜像都没走通时留个出口，别让用户卡在这儿
+                                if (err == "download_failed") {
+                                    TextButton(
+                                        onClick = {
+                                            vm.openReleasePage()
+                                            vm.dismissUpdate()
+                                        },
+                                        contentPadding = PaddingValues(0.dp),
+                                    ) {
+                                        Text(
+                                            stringResource(R.string.update_open_browser),
+                                            fontSize = 12.sp,
+                                        )
+                                    }
+                                }
                             }
                             if (upd.needsPermission) {
                                 Spacer(Modifier.height(8.dp))

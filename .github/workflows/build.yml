@@ -34,6 +34,34 @@ jobs:
       - name: Make gradlew executable
         run: chmod +x ./gradlew
 
+      # 打 tag 发版前的硬校验（放在编译之前，几秒内失败，不浪费时间）：
+      #   1. 签名 Secrets 缺失就直接失败。以前是静默回退 debug 签名，
+      #      发出去的「正式版」装不上任何已装正式版的机器。
+      #   2. tag 必须与 versionName 一致。否则应用内更新会陷入死循环：
+      #      提示装完新版本，BuildConfig.VERSION_NAME 还是旧的，下次启动又提示。
+      - name: Verify release prerequisites
+        if: startsWith(github.ref, 'refs/tags/v')
+        env:
+          KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
+          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+        run: |
+          missing=""
+          for name in KEYSTORE_BASE64 KEYSTORE_PASSWORD KEY_ALIAS KEY_PASSWORD; do
+            [ -n "${!name}" ] || missing="$missing $name"
+          done
+          if [ -n "$missing" ]; then
+            echo "::error::tag 构建缺少签名 Secrets:$missing —— 在仓库 Settings → Secrets 补齐后重打 tag"
+            exit 1
+          fi
+
+          version_name=$(grep -oP 'versionName = "\K[^"]+' app/build.gradle.kts)
+          if [ "${GITHUB_REF_NAME#v}" != "$version_name" ]; then
+            echo "::error::tag ${GITHUB_REF_NAME} 与 app/build.gradle.kts 的 versionName ${version_name} 不一致"
+            exit 1
+          fi
+
       - name: Build debug APK
         run: ./gradlew assembleDebug --no-daemon
 
@@ -44,16 +72,15 @@ jobs:
           path: app/build/outputs/apk/debug/*.apk
           if-no-files-found: error
 
-      # 有签名 Secrets 时使用正式签名；没有则自动回退 debug 签名（不影响 PR 构建）
+      # 签名 Secrets 的完整性已在上一步校验过，这里不再做存在性判断
+      # （有判断就有静默回退，正是之前那个坑）
       - name: Prepare release signing
         if: startsWith(github.ref, 'refs/tags/v')
         env:
           KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
         run: |
-          if [ -n "$KEYSTORE_BASE64" ]; then
-            echo "$KEYSTORE_BASE64" | base64 -d > "$RUNNER_TEMP/release.jks"
-            echo "KEYSTORE_PATH=$RUNNER_TEMP/release.jks" >> "$GITHUB_ENV"
-          fi
+          echo "$KEYSTORE_BASE64" | base64 -d > "$RUNNER_TEMP/release.jks"
+          echo "KEYSTORE_PATH=$RUNNER_TEMP/release.jks" >> "$GITHUB_ENV"
 
       - name: Build release APK
         if: startsWith(github.ref, 'refs/tags/v')
