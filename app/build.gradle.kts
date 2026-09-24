@@ -40,8 +40,8 @@ android {
         applicationId = "com.yusheng.quota"
         minSdk = 26
         targetSdk = 35
-        versionCode = 9
-        versionName = "1.2.9"
+        versionCode = 10
+        versionName = "1.2.10"
         resourceConfigurations += listOf("en", "zh-rCN")
     }
 
@@ -95,6 +95,8 @@ dependencies {
     implementation("androidx.lifecycle:lifecycle-runtime-compose:2.8.6")
     implementation("androidx.lifecycle:lifecycle-viewmodel-compose:2.8.6")
     implementation("androidx.activity:activity-compose:1.9.2")
+    // WebView 能力扩展：关闭「算法暗色」（会把不支持的站点整页刷成黑色）
+    implementation("androidx.webkit:webkit:1.12.1")
 
     val composeBom = platform("androidx.compose:compose-bom:2024.09.03")
     implementation(composeBom)

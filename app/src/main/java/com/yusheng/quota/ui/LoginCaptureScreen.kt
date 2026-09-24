@@ -4,8 +4,10 @@ import android.annotation.SuppressLint
 import android.content.ActivityNotFoundException
 import android.content.Intent
 import android.graphics.Bitmap
+import android.graphics.Color as AndroidColor
 import android.net.Uri
 import android.os.Message
+import android.webkit.ConsoleMessage
 import android.webkit.CookieManager
 import android.webkit.RenderProcessGoneDetail
 import android.webkit.WebChromeClient
@@ -65,6 +67,9 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
+import androidx.webkit.WebSettingsCompat
+import androidx.webkit.WebViewFeature
+import com.yusheng.quota.BuildConfig
 import com.yusheng.quota.R
 import org.json.JSONObject
 
@@ -105,6 +110,13 @@ fun LoginCaptureScreen(
     var immersive by remember { mutableStateOf(false) }
     var webViewKey by remember { mutableIntStateOf(0) }
     val webView = remember { mutableStateOf<WebView?>(null) }
+    /** WebView 内核信息：缺失时几乎所有站点都是白屏，必须让用户看到 */
+    val providerInfo = remember {
+        runCatching {
+            WebView.getCurrentWebViewPackage()?.let { "${it.packageName} ${it.versionName}" }
+        }.getOrNull()
+    }
+    var consoleError by remember { mutableStateOf("") }
 
     val loggedInText = stringResource(R.string.login_state_logged_in)
     val notLoggedInText = stringResource(R.string.login_state_unknown)
@@ -115,6 +127,7 @@ fun LoginCaptureScreen(
     val googleBlockedText = stringResource(R.string.login_google_blocked)
     val fitText = stringResource(R.string.login_fit_width)
     val blankHint = stringResource(R.string.login_blank_hint)
+    val webViewMissing = stringResource(R.string.login_webview_missing)
     val progressAlpha by animateFloatAsState(if (progress in 1..99) 1f else 0f, label = "loginProgress")
 
     val ctx = LocalContext.current
@@ -220,12 +233,30 @@ fun LoginCaptureScreen(
                             settings.allowFileAccess = false
                             settings.allowContentAccess = false
                             settings.userAgentString = if (desktopMode) DESKTOP_UA else MOBILE_UA
+                            // 关闭「算法暗色」：它会给不支持暗色的站点整页刷黑，看起来就是黑屏
+                            if (WebViewFeature.isFeatureSupported(WebViewFeature.ALGORITHMIC_DARKENING)) {
+                                WebSettingsCompat.setAlgorithmicDarkeningAllowed(settings, false)
+                            }
+                            applyForceDarkOff(settings)
+                            setBackgroundColor(AndroidColor.WHITE)
+                            if (BuildConfig.DEBUG) WebView.setWebContentsDebuggingEnabled(true)
                             CookieManager.getInstance().setAcceptCookie(true)
                             CookieManager.getInstance().setAcceptThirdPartyCookies(this, true)
 
                             webChromeClient = object : WebChromeClient() {
                                 override fun onProgressChanged(view: WebView?, newProgress: Int) {
                                     progress = newProgress
+                                }
+
+                                /** 记录第一条脚本错误：白屏大多是脚本挂了 */
+                                override fun onConsoleMessage(msg: ConsoleMessage?): Boolean {
+                                    val text = msg?.message().orEmpty()
+                                    if (consoleError.isBlank() &&
+                                        (msg?.messageLevel() == ConsoleMessage.MessageLevel.ERROR || text.contains("error", true))
+                                    ) {
+                                        consoleError = text.take(120)
+                                    }
+                                    return false
                                 }
 
                                 /** 登录页常见的弹窗：复用当前 WebView 打开，登录态才不会丢 */
@@ -358,17 +389,30 @@ fun LoginCaptureScreen(
                 val isGoogle = currentUrl.contains("accounts.google.com")
                 Text(
                     text = when {
+                        providerInfo == null -> webViewMissing
                         status.isNotBlank() -> status
                         isGoogle -> googleBlockedText
                         cookie.isNotBlank() -> loggedInText
                         else -> notLoggedInText
                     },
                     fontSize = 11.sp,
-                    color = if (isGoogle) MaterialTheme.colorScheme.primary
+                    color = if (providerInfo == null || isGoogle) MaterialTheme.colorScheme.primary
                     else MaterialTheme.colorScheme.onSurfaceVariant,
                     maxLines = 2,
                     overflow = TextOverflow.Ellipsis,
                 )
+                if (providerInfo != null) {
+                    Text(
+                        buildString {
+                            append("WebView: $providerInfo")
+                            if (consoleError.isNotBlank()) append(" · JS: $consoleError")
+                        },
+                        fontSize = 9.sp,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
+                    )
+                }
                 Spacer(Modifier.height(6.dp))
                 Row(
                     Modifier.fillMaxWidth(),
@@ -409,38 +453,39 @@ fun LoginCaptureScreen(
                     )
                 }
                 Spacer(Modifier.height(8.dp))
-                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    OutlinedButton(
-                        onClick = { onCaptured(cookie.takeIf { it.isNotBlank() }, null) },
-                        modifier = Modifier.weight(1f),
-                    ) { Text(stringResource(R.string.action_login_save_cookie), fontSize = 12.sp) }
-
-                    Button(
-                        onClick = {
-                            val wv = webView.value
-                            if (wv == null || fetchUrl.isBlank()) {
-                                status = fetchFailedText
-                                return@Button
-                            }
-                            busy = true
-                            status = ""
-                            capture(wv, fetchUrl, cookie, currentUrl) { c, body ->
-                                busy = false
-                                if (body == null) status = fetchFailedText else onCaptured(c, body)
-                            }
-                        },
-                        modifier = Modifier.weight(1f),
-                        enabled = !busy && fetchUrl.isNotBlank(),
-                    ) {
-                        if (busy) {
-                            CircularProgressIndicator(Modifier.size(14.dp), strokeWidth = 2.dp)
-                            Spacer(Modifier.width(6.dp))
+                Button(
+                    onClick = {
+                        val wv = webView.value
+                        if (wv == null || fetchUrl.isBlank()) {
+                            status = fetchFailedText
+                            return@Button
                         }
-                        Text(stringResource(R.string.action_login_fetch_now), fontSize = 12.sp)
+                        busy = true
+                        status = ""
+                        capture(wv, fetchUrl, cookie, currentUrl) { c, body ->
+                            busy = false
+                            if (body == null) status = fetchFailedText else onCaptured(c, body)
+                        }
+                    },
+                    modifier = Modifier.fillMaxWidth(),
+                    enabled = !busy && fetchUrl.isNotBlank(),
+                ) {
+                    if (busy) {
+                        CircularProgressIndicator(Modifier.size(14.dp), strokeWidth = 2.dp)
+                        Spacer(Modifier.width(6.dp))
                     }
+                    Text(stringResource(R.string.action_login_fetch_now), fontSize = 13.sp)
                 }
             }
         }
+    }
+}
+
+/** API 29–32 的强制暗色同样会把页面刷黑，统一关掉（更高版本用 ALGORITHMIC_DARKENING 分支） */
+@Suppress("DEPRECATION")
+private fun applyForceDarkOff(settings: WebSettings) {
+    if (WebViewFeature.isFeatureSupported(WebViewFeature.FORCE_DARK)) {
+        WebSettingsCompat.setForceDark(settings, WebSettingsCompat.FORCE_DARK_OFF)
     }
 }
 

@@ -120,15 +120,15 @@ object Glass {
     fun dockFill(): Brush =
         if (isDark()) {
             Brush.verticalGradient(
-                0f to Color.White.copy(alpha = 0.13f),
-                0.5f to Color.White.copy(alpha = 0.08f),
-                1f to Color.White.copy(alpha = 0.05f),
+                0f to Color.White.copy(alpha = 0.09f),
+                0.5f to Color.White.copy(alpha = 0.055f),
+                1f to Color.White.copy(alpha = 0.035f),
             )
         } else {
             Brush.verticalGradient(
-                0f to Color.White.copy(alpha = 0.62f),
-                0.5f to Color.White.copy(alpha = 0.48f),
-                1f to Color.White.copy(alpha = 0.38f),
+                0f to Color.White.copy(alpha = 0.48f),
+                0.5f to Color.White.copy(alpha = 0.34f),
+                1f to Color.White.copy(alpha = 0.26f),
             )
         }
 

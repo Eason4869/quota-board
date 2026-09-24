@@ -3,6 +3,22 @@
 本项目遵循 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/) 与
 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [1.2.10] - 2026-09-24
+
+### 修复
+
+- **登录抓取白屏 / 黑屏**
+  - 关闭 WebView 的「算法暗色」与「强制暗色」：它会把不支持暗色的站点整页刷黑，看起来就是黑屏
+  - WebView 显式设置白色背景，便于区分「页面没画出来」与「WebView 完全没渲染」
+  - 登录页底部新增诊断信息：**WebView 内核版本 + 第一条脚本错误**，白屏时能直接看出原因
+  - 系统 WebView 缺失或被禁用时给出明确提示（更新或启用「Android System WebView」）
+  - 页面重新加载后会清掉上一次的错误状态
+- **Cookie / API Key 字段新增「粘贴」按钮**：应用内登录不可用时，可以先用浏览器登录，再把 Cookie 粘进来
+
+### 变更
+
+- **Dock**：胶囊更长、图标不再拥挤，并进一步降低不透明度
+
 ## [1.2.9] - 2026-09-24
 
 ### 新增
@@ -192,6 +208,7 @@
 - 火山 Agent / Coding Plan 需使用账号级 AK/SK（非推理 API Key）
 - 智谱团队版需额外填写组织 ID / 项目 ID
 
+[1.2.10]: https://github.com/Eason4869/quota-board/releases/tag/v1.2.10
 [1.2.9]: https://github.com/Eason4869/quota-board/releases/tag/v1.2.9
 [1.2.8]: https://github.com/Eason4869/quota-board/releases/tag/v1.2.8
 [1.2.7]: https://github.com/Eason4869/quota-board/releases/tag/v1.2.7

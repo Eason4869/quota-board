@@ -120,11 +120,13 @@ fun ConfigScreen(
         SectionCard {
             Column {
                 when (cfg.mode) {
-                    QueryMode.API -> {
+                        QueryMode.API -> {
                         Field(stringResource(R.string.field_url), cfg.url) { onCfgChange(cfg.copy(url = it)) }
-                        Field(stringResource(R.string.field_api_key), cfg.apiKey, secret = true) {
-                            onCfgChange(cfg.copy(apiKey = it))
-                        }
+                        SecretField(
+                            label = stringResource(R.string.field_api_key),
+                            value = cfg.apiKey,
+                            onChange = { onCfgChange(cfg.copy(apiKey = it)) },
+                        )
                         if (template.id == "zhipu") {
                             Hint(stringResource(R.string.hint_zhipu))
                             Field(stringResource(R.string.field_org_id), cfg.orgId) {
@@ -152,9 +154,11 @@ fun ConfigScreen(
                     QueryMode.LOGIN -> {
                         Field(stringResource(R.string.field_url), cfg.url) { onCfgChange(cfg.copy(url = it)) }
                         Field(stringResource(R.string.field_login_url), cfg.loginUrl) { onCfgChange(cfg.copy(loginUrl = it)) }
-                        Field(stringResource(R.string.field_cookie), cfg.cookie, secret = true) {
-                            onCfgChange(cfg.copy(cookie = it))
-                        }
+                        SecretField(
+                            label = stringResource(R.string.field_cookie),
+                            value = cfg.cookie,
+                            onChange = { onCfgChange(cfg.copy(cookie = it)) },
+                        )
                         Button(
                             onClick = { onLoginCapture(cfg.loginUrl.ifBlank { cfg.url }, cfg.url) },
                             modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
@@ -255,6 +259,31 @@ private fun Hint(text: String) {
         color = MaterialTheme.colorScheme.onSurfaceVariant,
         modifier = Modifier.padding(top = 8.dp),
     )
+}
+
+/**
+ * 密码类字段：右侧带「粘贴」按钮。
+ * 应用内 WebView 不可用时（系统 WebView 缺失、站点拦截 WebView），
+ * 可以直接从浏览器/密码管理器把 Cookie 或 Key 粘进来。
+ */
+@Composable
+private fun SecretField(
+    label: String,
+    value: String,
+    onChange: (String) -> Unit,
+) {
+    val clipboard = LocalClipboardManager.current
+    val pasteLabel = stringResource(R.string.action_paste)
+    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+        Box(Modifier.weight(1f)) {
+            Field(label, value, secret = true, onChange = onChange)
+        }
+        TextButton(
+            onClick = {
+                clipboard.getText()?.text?.trim()?.takeIf { it.isNotBlank() }?.let(onChange)
+            },
+        ) { Text(pasteLabel, fontSize = 12.sp) }
+    }
 }
 
 /** 模式名走字符串资源，跟随系统语言 */

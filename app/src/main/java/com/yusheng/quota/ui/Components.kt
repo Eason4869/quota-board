@@ -17,6 +17,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -84,6 +85,8 @@ fun GlassBottomBar(current: Int, onSelect: (Int) -> Unit) {
     val shape = RoundedCornerShape(26.dp)
     Box(
         Modifier
+            // 横向上再放开一些：胶囊更长、图标之间不再拥挤
+            .widthIn(min = 210.dp)
             .shadow(
                 elevation = 10.dp,
                 shape = shape,
@@ -99,8 +102,9 @@ fun GlassBottomBar(current: Int, onSelect: (Int) -> Unit) {
         Box(Modifier.matchParentSize().border(1.2.dp, Glass.stroke(), shape))
         Row(
             modifier = Modifier
-                .padding(horizontal = 6.dp, vertical = 6.dp),
-            horizontalArrangement = Arrangement.spacedBy(2.dp),
+                .fillMaxWidth()
+                .padding(horizontal = 10.dp, vertical = 6.dp),
+            horizontalArrangement = Arrangement.SpaceEvenly,
             verticalAlignment = Alignment.CenterVertically,
         ) {
             items.forEach { (icon, label, idx) ->
