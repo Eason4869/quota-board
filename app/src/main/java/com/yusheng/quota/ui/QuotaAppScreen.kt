@@ -67,8 +67,10 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
@@ -526,6 +528,7 @@ private fun HomeScreen(
     var dragId by remember { mutableStateOf<String?>(null) }
     var dragDy by remember { mutableFloatStateOf(0f) }
     val rowPx = with(LocalDensity.current) { 86.dp.toPx() }
+    val haptic = LocalHapticFeedback.current
     if (state.accounts.isEmpty()) {
         Box(Modifier.fillMaxSize().padding(24.dp), contentAlignment = Alignment.Center) {
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
@@ -564,11 +567,19 @@ private fun HomeScreen(
                     .zIndex(if (dragId == account.id) 1f else 0f)
                     .graphicsLayer {
                         translationY = if (dragId == account.id) dragDy else 0f
-                        shadowElevation = if (dragId == account.id) 16f else 0f
+                        val active = dragId == account.id
+                        shadowElevation = if (active) 20f else 0f
+                        // 拖动中的卡片略微放大，视觉上「浮起来」
+                        scaleX = if (active) 1.02f else 1f
+                        scaleY = if (active) 1.02f else 1f
                     }
                     .pointerInput(account.id) {
                         detectDragGesturesAfterLongPress(
-                            onDragStart = { dragId = account.id; dragDy = 0f },
+                            onDragStart = {
+                                dragId = account.id
+                                dragDy = 0f
+                                haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                            },
                             onDrag = { change, delta ->
                                 change.consume()
                                 dragDy += delta.y
