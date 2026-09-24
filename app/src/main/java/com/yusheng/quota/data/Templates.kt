@@ -127,6 +127,18 @@ object Templates {
             ),
         ),
         Template(
+            id = "moonshot",
+            nameRes = R.string.vendor_moonshot,
+            descRes = R.string.vendor_moonshot_desc,
+            color = 0xFF16191E,
+            defaultMode = QueryMode.API,
+            modes = listOf(QueryMode.API, QueryMode.WEBHOOK),
+            defaults = QueryConfig(
+                mode = QueryMode.API,
+                url = "https://api.moonshot.cn/v1/users/me/balance",
+            ),
+        ),
+        Template(
             id = "minimax",
             nameRes = R.string.vendor_minimax,
             descRes = R.string.vendor_minimax_desc,
@@ -249,18 +261,6 @@ object Templates {
         ),
 
         // ── 追加厂商：新增项一律排在这里，「通用」固定最后一位 ──
-        Template(
-            id = "moonshot",
-            nameRes = R.string.vendor_moonshot,
-            descRes = R.string.vendor_moonshot_desc,
-            color = 0xFF16191E,
-            defaultMode = QueryMode.API,
-            modes = listOf(QueryMode.API, QueryMode.WEBHOOK),
-            defaults = QueryConfig(
-                mode = QueryMode.API,
-                url = "https://api.moonshot.cn/v1/users/me/balance",
-            ),
-        ),
         Template(
             id = "copilot",
             nameRes = R.string.vendor_copilot,

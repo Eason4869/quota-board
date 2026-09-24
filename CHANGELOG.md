@@ -3,6 +3,11 @@
 本项目遵循 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/) 与
 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [1.2.28] - 2026-09-24
+
+- 修复深色模式下 Moonshot / Copilot 图标看不见：改用浅色底 + 白色图标
+- 厂商列表把 Moonshot 排到 Kimi 旁边
+
 ## [1.2.27] - 2026-09-24
 
 - 修复拖动排序不跟手、闪动：位移改为按指针位置实时重算，换位按实际行距计算

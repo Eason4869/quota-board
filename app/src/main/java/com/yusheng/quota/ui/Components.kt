@@ -34,9 +34,11 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.graphics.drawOutline
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
@@ -203,12 +205,18 @@ fun VendorBadge(
     size: Int = 42,
     templateId: String? = null,
 ) {
+    val brand = Color(color)
+    // Moonshot / Copilot 这类品牌色本身就是近黑，深色模式下底色会和背景融在一起，
+    // logo 又是纯黑矢量 —— 整块会「消失」。这种组合改用浅色底 + 白色 logo。
+    val inverted = MaterialTheme.colorScheme.surface.luminance() < 0.5f && brand.luminance() < 0.25f
+    val plate = if (inverted) Color.White.copy(alpha = 0.16f) else brand.copy(alpha = 0.14f)
+    val rim = if (inverted) Color.White.copy(alpha = 0.32f) else brand.copy(alpha = 0.35f)
     Box(
         modifier = Modifier
             .size(size.dp)
             .clip(RoundedCornerShape(14.dp))
-            .background(Color(color).copy(alpha = 0.14f))
-            .border(1.dp, Color(color).copy(alpha = 0.35f), RoundedCornerShape(14.dp)),
+            .background(plate)
+            .border(1.dp, rim, RoundedCornerShape(14.dp)),
         contentAlignment = Alignment.Center,
     ) {
         if (templateId != null) {
@@ -217,11 +225,12 @@ fun VendorBadge(
                 contentDescription = null,
                 modifier = Modifier.size((size * 0.62f).toInt().dp),
                 contentScale = ContentScale.Fit,
+                colorFilter = if (inverted) ColorFilter.tint(Color.White) else null,
             )
         } else {
             Text(
                 text = short,
-                color = Color(color),
+                color = if (inverted) Color.White else brand,
                 fontSize = (size / 3).sp,
                 fontWeight = FontWeight.Bold,
             )

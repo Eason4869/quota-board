@@ -50,8 +50,8 @@ android {
         applicationId = "com.yusheng.quota"
         minSdk = 26
         targetSdk = 35
-        versionCode = 27
-        versionName = "1.2.27"
+        versionCode = 28
+        versionName = "1.2.28"
         resourceConfigurations += listOf("en", "zh-rCN")
     }
 
