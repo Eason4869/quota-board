@@ -71,8 +71,8 @@ fun logoResFor(templateId: String): Int = when (templateId) {
 }
 
 /**
- * 液态玻璃底栏：悬浮胶囊 + 高光描边 + 选中态动效，仅图标。
- * 自带导航栏内边距，避免被系统手势条压住。
+ * 液态玻璃 Dock：只有胶囊本体有材质与描边，**四周完全透明**，
+ * 页面内容可以从下方穿过（配合调用方的底部内边距，不会被挡）。
  */
 @Composable
 fun GlassBottomBar(current: Int, onSelect: (Int) -> Unit) {
@@ -81,29 +81,20 @@ fun GlassBottomBar(current: Int, onSelect: (Int) -> Unit) {
         Triple(Icons.Default.Add, stringResource(R.string.nav_add), 1),
         Triple(Icons.Default.Settings, stringResource(R.string.nav_settings), 2),
     )
-    val shape = RoundedCornerShape(30.dp)
+    val shape = RoundedCornerShape(26.dp)
     Box(
         Modifier
-            .fillMaxWidth()
-            .navigationBarsPadding()
-            .padding(horizontal = 22.dp, vertical = 10.dp),
+            .shadow(14.dp, shape, clip = false)
+            .clip(shape)
+            .background(Glass.surfaceStrong()),
     ) {
-        // 玻璃层：外阴影 + 顶部高光 + 高光描边
-        Box(
-            Modifier
-                .matchParentSize()
-                .shadow(12.dp, shape, clip = false)
-                .clip(shape)
-                .background(Glass.highlight())
-                .border(1.2.dp, Glass.stroke(), shape),
-        )
+        // 玻璃质感：顶部高光渐变 + 高光描边（只覆盖胶囊本体，不铺满屏幕）
+        Box(Modifier.matchParentSize().background(Glass.highlight()))
+        Box(Modifier.matchParentSize().border(1.2.dp, Glass.stroke(), shape))
         Row(
             modifier = Modifier
-                .fillMaxWidth()
-                .clip(shape)
-                .background(Glass.surfaceStrong())
-                .padding(vertical = 8.dp),
-            horizontalArrangement = Arrangement.SpaceEvenly,
+                .padding(horizontal = 6.dp, vertical = 6.dp),
+            horizontalArrangement = Arrangement.spacedBy(2.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             items.forEach { (icon, label, idx) ->
@@ -119,8 +110,8 @@ fun GlassBottomBar(current: Int, onSelect: (Int) -> Unit) {
                 val scale by animateFloatAsState(if (selected) 1.12f else 1f, label = "navScale")
                 Box(
                     modifier = Modifier
-                        .size(54.dp)
-                        .clip(RoundedCornerShape(20.dp))
+                        .size(50.dp)
+                        .clip(RoundedCornerShape(18.dp))
                         .background(pillColor)
                         .clickable { onSelect(idx) },
                     contentAlignment = Alignment.Center,

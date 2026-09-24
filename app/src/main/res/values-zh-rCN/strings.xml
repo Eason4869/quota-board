@@ -21,7 +21,6 @@
     <string name="title_settings">设置</string>
     <string name="title_about">关于</string>
     <string name="title_data">数据</string>
-    <string name="title_changelog">更新日志</string>
 
     <!-- Home -->
     <string name="empty_title">还没有账户</string>
@@ -82,7 +81,6 @@
     <string name="about_repo_value">github.com/Eason4869/quota-board</string>
     <string name="about_privacy">隐私</string>
     <string name="about_privacy_body">额度数据来自各厂商官方接口、云函数或你的登录态，本应用不上传任何数据。API Key 与 Cookie 仅保存在本机；导出 JSON 请自行妥善保管。</string>
-    <string name="changelog_1_0_0">v1.0.0 — 首个版本：多厂商账户、按厂商裁剪的查询方式、桌面小组件、深色/浅色主题、中英双语。</string>
 
     <!-- Widget -->
     <string name="widget_label">额度台</string>
@@ -149,6 +147,10 @@
     <string name="login_desktop_mode">桌面版页面</string>
     <string name="login_mobile_mode">手机版页面</string>
     <string name="login_google_blocked">Google 登录会拒绝应用内浏览器：请用「在浏览器打开」登录，或把该账户改用云函数。</string>
+    <string name="login_fit_width">适应宽度</string>
+    <string name="login_fullscreen">全屏</string>
+    <string name="login_exit_fullscreen">退出全屏</string>
+    <string name="login_blank_hint">页面内容为空：可试试「适应宽度」或「桌面版」，也可以用浏览器打开。</string>
 
     <string name="toast_query_ok">查询成功</string>
     <string name="toast_query_failed">查询失败</string>
@@ -182,7 +184,6 @@
     <string name="wh_auth_bearer">Bearer</string>
     <string name="wh_auth_header">Header</string>
     <string name="wh_auth_query">Query</string>
-    <string name="changelog_1_1_0">v1.1.0 — 新增应用内登录取数、自定义提取器、首页仪表盘、厂商字段展示、StepFun 与 Novita AI、多账户桌面小组件；各厂商额度解析更准确。</string>
 
     <string name="vendor_stepfun">阶跃星辰 StepFun</string>
     <string name="vendor_stepfun_desc">账户余额</string>

@@ -20,6 +20,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
@@ -77,6 +78,9 @@ import kotlin.math.roundToInt
 
 private enum class Screen { HOME, DETAIL, CATALOG, CONFIG, SETTINGS, ABOUT }
 
+/** 悬浮 Dock 占位高度：内容底部留白，保证最后一项不会被 Dock 挡住 */
+private val DockSpace = 84.dp
+
 /** 登录抓取请求：在应用内 WebView 登录，成功后回填 Cookie / 直接带回额度 JSON */
 private data class LoginRequest(
     val loginUrl: String,
@@ -126,27 +130,10 @@ fun QuotaAppRoot(vm: QuotaViewModel) {
     }
 
     Box(Modifier.fillMaxSize().background(Glass.background())) {
+        val showDock = screen == Screen.HOME || screen == Screen.CATALOG || screen == Screen.SETTINGS
         Scaffold(
             containerColor = Color.Transparent,
             snackbarHost = { SnackbarHost(snackbar) },
-            bottomBar = {
-                if (screen == Screen.HOME || screen == Screen.CATALOG || screen == Screen.SETTINGS) {
-                    GlassBottomBar(
-                        current = when (screen) {
-                            Screen.CATALOG -> 1
-                            Screen.SETTINGS -> 2
-                            else -> 0
-                        },
-                        onSelect = { idx ->
-                            screen = when (idx) {
-                                1 -> Screen.CATALOG
-                                2 -> Screen.SETTINGS
-                                else -> Screen.HOME
-                            }
-                        },
-                    )
-                }
-            },
             topBar = {
                 var title: String = stringResource(R.string.app_name)
                 var back: (() -> Unit)? = null
@@ -198,7 +185,13 @@ fun QuotaAppRoot(vm: QuotaViewModel) {
                 )
             },
         ) { padding ->
-            Box(Modifier.fillMaxSize().padding(padding)) {
+            // 沉浸式：状态栏与导航栏都不占布局，内容延伸到系统栏之下
+            Box(
+                Modifier
+                    .fillMaxSize()
+                    .padding(padding)
+                    .padding(bottom = if (showDock) DockSpace else 0.dp),
+            ) {
                 // 页面切换动效：淡入 + 微位移，方向跟随前进 / 后退
                 AnimatedContent(
                     targetState = screen,
@@ -313,6 +306,31 @@ fun QuotaAppRoot(vm: QuotaViewModel) {
                     Screen.ABOUT -> AboutScreen()
                 }
                 }
+            }
+        }
+
+        // 悬浮 Dock：四周完全透明，浮在内容之上（内容底部已留出 DockSpace）
+        if (showDock) {
+            Box(
+                Modifier
+                    .align(Alignment.BottomCenter)
+                    .navigationBarsPadding()
+                    .padding(bottom = 10.dp),
+            ) {
+                GlassBottomBar(
+                    current = when (screen) {
+                        Screen.CATALOG -> 1
+                        Screen.SETTINGS -> 2
+                        else -> 0
+                    },
+                    onSelect = { idx ->
+                        screen = when (idx) {
+                            1 -> Screen.CATALOG
+                            2 -> Screen.SETTINGS
+                            else -> Screen.HOME
+                        }
+                    },
+                )
             }
         }
 

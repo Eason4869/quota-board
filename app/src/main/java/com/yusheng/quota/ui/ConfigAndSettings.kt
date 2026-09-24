@@ -482,16 +482,6 @@ fun AboutScreen() {
 
         SectionCard {
             Column {
-                Text(stringResource(R.string.title_changelog), fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.onSurface)
-                Spacer(Modifier.height(8.dp))
-                Text(stringResource(R.string.changelog_1_1_0), fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                Spacer(Modifier.height(8.dp))
-                Text(stringResource(R.string.changelog_1_0_0), fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            }
-        }
-
-        SectionCard {
-            Column {
                 Text(stringResource(R.string.about_privacy), fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.onSurface)
                 Spacer(Modifier.height(6.dp))
                 Text(stringResource(R.string.about_privacy_body), fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)

@@ -3,6 +3,21 @@
 本项目遵循 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/) 与
 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [1.2.8] - 2026-09-24
+
+### 变更
+
+- **关于页**：移除应用内的「更新日志」区块，版本记录统一放在仓库的 CHANGELOG 里
+- **底栏**：改为悬浮的玻璃胶囊 Dock，四周完全透明，不再是一整条铺满屏幕的底栏；内容可从 Dock 下方穿过
+- **沉浸式适配**：顶栏与 Dock 都让开系统状态栏与手势条，页面内容延伸到系统栏之下
+
+### 修复
+
+- **登录抓取**
+  - 新增「适应宽度」：读取页面真实宽度后重新计算缩放，桌面版控制台不再只显示一半
+  - 新增全屏模式：整屏留给网页，只保留一个悬浮操作按钮
+  - 新增空白页检测：页面内容过少时给出提示，引导使用「适应宽度 / 桌面版」或用浏览器打开
+
 ## [1.2.7] - 2026-09-24
 
 ### 修复
@@ -157,6 +172,7 @@
 - 火山 Agent / Coding Plan 需使用账号级 AK/SK（非推理 API Key）
 - 智谱团队版需额外填写组织 ID / 项目 ID
 
+[1.2.8]: https://github.com/Eason4869/quota-board/releases/tag/v1.2.8
 [1.2.7]: https://github.com/Eason4869/quota-board/releases/tag/v1.2.7
 [1.2.6]: https://github.com/Eason4869/quota-board/releases/tag/v1.2.6
 [1.2.5]: https://github.com/Eason4869/quota-board/releases/tag/v1.2.5
