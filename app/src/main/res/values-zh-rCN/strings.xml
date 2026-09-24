@@ -146,6 +146,7 @@
     <string name="login_fit_width">适应宽度</string>
     <string name="login_fullscreen">全屏</string>
     <string name="login_exit_fullscreen">退出全屏</string>
+    <string name="login_hide_keyboard">收起键盘</string>
     <string name="login_blank_hint">页面内容为空：可试「适应宽度」或「桌面版」；若仍不行，请用浏览器登录后把 Cookie 粘贴到账户配置里。</string>
     <string name="login_blank_res">页面空白，且有 %1$d 个页面自己的文件没加载成功（首个：%2$s）。多半是当前网络或代理拦了这些文件——可先重试，或换个网络。</string>
     <string name="login_stalled">页面一直没加载完：已经开始了，但 %1$d 秒后正文还在下载中。当前网络下这个站点被卡在半路了。建议换网络，或改用浏览器登录后粘贴 Cookie。</string>

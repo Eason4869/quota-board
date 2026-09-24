@@ -30,9 +30,11 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.ime
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawingPadding
 import androidx.compose.foundation.layout.size
@@ -43,6 +45,7 @@ import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.DesktopWindows
 import androidx.compose.material.icons.filled.Fullscreen
 import androidx.compose.material.icons.filled.FullscreenExit
+import androidx.compose.material.icons.filled.KeyboardHide
 import androidx.compose.material.icons.filled.OpenInBrowser
 import androidx.compose.material.icons.filled.PhoneAndroid
 import androidx.compose.material.icons.filled.Refresh
@@ -71,6 +74,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.style.TextOverflow
@@ -319,6 +324,16 @@ fun LoginCaptureScreen(
 
     val ctx = LocalContext.current
     val clipboard = LocalClipboardManager.current
+    val density = LocalDensity.current
+    val keyboard = LocalSoftwareKeyboardController.current
+    /**
+     * 软键盘是否弹起。
+     *
+     * edge-to-edge 下窗口不会为键盘缩放，而验证码这类**必须输入**的页面，
+     * 键盘一压就只剩一条缝：正文被挤到看不见，看起来就是「黑屏 / 显示不全」。
+     * 这里在键盘弹起时把底部面板收起来，把高度全让给网页。
+     */
+    val imeVisible = WindowInsets.ime.getBottom(density) > 0
 
     // 内核真实 UA —— 我们发给站点的 UA 由它派生，内核版本也从它判断
     val defaultUa = remember {
@@ -457,6 +472,39 @@ fun LoginCaptureScreen(
     }
 
     /**
+     * 页面横向溢出时**自动**按宽度缩放。
+     *
+     * 用的是与「适应宽度」同一套 CSS zoom（不重载页面），所以不会清空用户已填的内容 ——
+     * 这一步专门照顾需要多步输入的站点：账号密码过了之后，验证码那一步的页面
+     * 常常比屏幕宽一截，表现出来就是「黑屏 / 显示不全」。
+     * 每个地址只自动做一次，避免「缩放 → 又判定溢出」来回抖。
+     */
+    val autoFitDone = remember { mutableSetOf<String>() }
+    fun autoFitIfOverflow(wv: WebView) {
+        val viewWidth = wv.width.takeIf { it > 0 } ?: return
+        wv.evaluateJavascript(
+            "(function(){var d=document.documentElement,b=document.body;" +
+                "var w=Math.max(d?d.scrollWidth:0,b?b.scrollWidth:0,0);" +
+                "return JSON.stringify([w, window.innerWidth||0]);})()"
+        ) { raw ->
+            val arr = runCatching {
+                org.json.JSONArray(
+                    org.json.JSONTokener(raw ?: "").nextValue().toString()
+                )
+            }.getOrNull() ?: return@evaluateJavascript
+            val pageCss = arr.optDouble(0, 0.0).toFloat()
+            val winCss = arr.optDouble(1, 0.0).toFloat()
+            if (pageCss <= 0f || winCss <= 0f || pageCss <= winCss * 1.08f) return@evaluateJavascript
+            val url = wv.url ?: return@evaluateJavascript
+            if (!autoFitDone.add(url)) return@evaluateJavascript
+            val density = ctx.resources.displayMetrics.density
+            val scale = ((viewWidth / density) / pageCss).coerceIn(0.25f, 1.0f)
+            wv.evaluateJavascript("(function(){document.documentElement.style.zoom='$scale';})()") { }
+            Log.i(TAG, "auto-fit ${(scale * 100).toInt()}% page=${pageCss.toInt()} for ${shortUrl(url)}")
+        }
+    }
+
+    /**
      * 发起一轮新加载（刷新 / 切桌面版）。复位上一轮的判定，并让看门狗重新计时。
      * `responded = false` 必须在 loadUrl/reload **之前**同步做掉，见上面 effect 的注释。
      */
@@ -500,6 +548,16 @@ fun LoginCaptureScreen(
         append("\nurl=").append(currentUrl)
         append("\nstatus=").append(status.ifBlank { "-" })
         append("\nprogress=").append(progress)
+        // 键盘状态与 WebView 实际可视高度：验证码页「黑屏/显示不全」时，这两个数最能说明问题
+        append("\nime=").append(if (imeVisible) "yes" else "no")
+        append("\nchrome=").append(
+            when {
+                immersive -> "immersive"
+                imeVisible -> "ime-compact"
+                else -> "full"
+            }
+        )
+        webView.value?.let { wv -> if (wv.height > 0) append("\nview_h=").append(wv.height).append("px") }
         append("\nstarted=").append(if (responded) "yes" else "no")
         append("\nfinished=").append(if (finished) "yes" else "no")
         append("\nblank=").append(if (looksBlank) "yes" else "no")
@@ -697,6 +755,8 @@ fun LoginCaptureScreen(
                                     // 走独立标志而不是写进 status：写进 status 会把下面
                                     // 「内核过旧 / 脚本执行失败」这类更具体的判断盖掉。
                                     view?.let { probeDom(it) }
+                                    // 验证码这类多步页面常比屏幕宽，自动缩到屏幕内（不重载，不丢输入）
+                                    view?.let { autoFitIfOverflow(it) }
                                 }
 
                                 override fun onReceivedError(
@@ -833,15 +893,23 @@ fun LoginCaptureScreen(
             }
         }
 
-        if (immersive) {
+        // 键盘弹起时也走「紧凑模式」：验证码页要的是高度
+        if (immersive || imeVisible) {
             // 全屏时只留一个悬浮小按钮，其余空间全给网页
             Row(
                 Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 4.dp),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                IconButton(onClick = { immersive = false }) {
-                    Icon(Icons.Default.FullscreenExit, contentDescription = stringResource(R.string.login_exit_fullscreen))
+                if (immersive) {
+                    IconButton(onClick = { immersive = false }) {
+                        Icon(Icons.Default.FullscreenExit, contentDescription = stringResource(R.string.login_exit_fullscreen))
+                    }
+                } else {
+                    // 键盘挡着的时候，收面板而不是退全屏
+                    IconButton(onClick = { keyboard?.hide() }) {
+                        Icon(Icons.Default.KeyboardHide, contentDescription = stringResource(R.string.login_hide_keyboard))
+                    }
                 }
                 Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                     IconButton(onClick = { webView.value?.let { fitToWidth(it) } }) {

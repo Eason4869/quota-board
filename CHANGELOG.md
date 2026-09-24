@@ -3,6 +3,22 @@
 本项目遵循 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/) 与
 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [1.2.18] - 2026-09-24
+
+### 修复
+
+- **验证码页「黑屏 / 显示不全」**：这类多步登录（小米二步验证、短信验证码）必须调键盘，
+  而 edge-to-edge 下窗口不会为键盘缩放 —— 键盘一压，网页只剩一条缝，看着就是黑屏。
+  现在键盘弹起时自动收起底部面板，把高度全给网页（左上角另有「收起键盘」）
+- 登录页补上 `adjustResize`（此前从未声明输入法模式）
+- **页面横向溢出时自动按宽度缩放**：账号密码过了之后，验证码那一步的页面常比屏幕宽一截。
+  用的是和「适应宽度」同一套 CSS zoom（**不重载页面**），所以不会清空已填的验证码；
+  每个地址只自动做一次，不会来回抖
+
+### 变更
+
+- 诊断信息补上 `ime=`、`chrome=`、`view_h=` 三个字段：验证码页出问题时，这三个数最能说明现场
+
 ## [1.2.17] - 2026-09-24
 
 ### 新增
@@ -338,6 +354,7 @@
 - 火山 Agent / Coding Plan 需使用账号级 AK/SK（非推理 API Key）
 - 智谱团队版需额外填写组织 ID / 项目 ID
 
+[1.2.18]: https://github.com/Eason4869/quota-board/releases/tag/v1.2.18
 [1.2.17]: https://github.com/Eason4869/quota-board/releases/tag/v1.2.17
 [1.2.16]: https://github.com/Eason4869/quota-board/releases/tag/v1.2.16
 [1.2.15]: https://github.com/Eason4869/quota-board/releases/tag/v1.2.15

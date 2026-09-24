@@ -149,6 +149,7 @@
     <string name="login_fit_width">Fit width</string>
     <string name="login_fullscreen">Full screen</string>
     <string name="login_exit_fullscreen">Exit full screen</string>
+    <string name="login_hide_keyboard">Hide keyboard</string>
     <string name="login_blank_hint">Page looks empty. Try “Fit width” / “Desktop page”, or sign in with a browser and paste the Cookie in the account settings.</string>
     <string name="login_blank_res">The page is blank and %1$d of its own files failed to load (first: %2$s). A network or proxy is most likely blocking them — retry, or switch networks.</string>
     <string name="login_stalled">The page never finished loading: it started but the content was still not downloaded after %1$d seconds. This site is being cut off mid-transfer on your current network. Try another network, or sign in with a browser and paste the Cookie instead.</string>
