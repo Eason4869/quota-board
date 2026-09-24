@@ -59,7 +59,7 @@ object UpdateChecker {
     }
 
     /** 用浏览器打开下载页（兼容各厂商应用商店限制，不做静默安装） */
-    fun openReleasePage(context: Context) {
+    fun openInBrowser(context: Context, url: String = "https://github.com/Eason4869/quota-board/releases/latest") {
         val intent = Intent(Intent.ACTION_VIEW, Uri.parse("https://github.com/Eason4869/quota-board/releases/latest"))
         intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
         runCatching { context.startActivity(intent) }

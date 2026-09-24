@@ -76,16 +76,3 @@ object Glass {
     fun stroke(): Color = if (isSystemInDarkTheme()) strokeDark else strokeLight
 }
 
-/** 液态玻璃材质：半透明表面 + 高光描边 */
-object Glass {
-    val surfaceLight = Color(0xB3FFFFFF)
-    val surfaceDark = Color(0x33FFFFFF)
-    val strokeLight = Color(0x66FFFFFF)
-    val strokeDark = Color(0x2EFFFFFF)
-
-    @Composable
-    fun surface(): Color = if (isSystemInDarkTheme()) surfaceDark else surfaceLight
-
-    @Composable
-    fun stroke(): Color = if (isSystemInDarkTheme()) strokeDark else strokeLight
-}
