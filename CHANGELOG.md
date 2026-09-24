@@ -3,6 +3,18 @@
 本项目遵循 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/) 与
 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [1.2.0] - 2026-09-23
+
+### 新增
+
+- **真实厂商 Logo**：账户列表、详情与模板目录全部替换为官网官方图标
+  - 覆盖小米、火山方舟、Kimi、智谱、MiniMax、OpenCode Go、DeepSeek、硅基流动、阶跃 StepFun、Novita AI、Claude、Gemini、OpenAI、OpenRouter
+  - generic 模板使用中性图标
+
+### 修复
+
+- **系统返回手势**：适配边缘返回，设置项改为实时生效
+
 ## [1.1.0] - 2026-09-23
 
 ### 修复
@@ -61,5 +73,6 @@
 - 火山 Agent / Coding Plan 需使用账号级 AK/SK（非推理 API Key）
 - 智谱团队版需额外填写组织 ID / 项目 ID
 
+[1.2.0]: https://github.com/Eason4869/quota-board/releases/tag/v1.2.0
 [1.1.0]: https://github.com/Eason4869/quota-board/releases/tag/v1.1.0
 [1.0.0]: https://github.com/Eason4869/quota-board/releases/tag/v1.0.0
