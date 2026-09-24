@@ -95,7 +95,7 @@ class QueryEngine(private val context: Context) {
                     method = "GET",
                     url = url,
                     headers = headers,
-                    body = null,
+                    body = "",
                     timeoutSec = timeoutSec,
                     mode = if (isConsole) QueryMode.LOGIN else QueryMode.API,
                 )
