@@ -3,6 +3,12 @@
 本项目遵循 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/) 与
 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [1.2.12] - 2026-09-24
+
+### 变更
+
+- **Dock**：胶囊长度取中（最小宽度 180dp、内边距 8dp），既不拥挤也不像整条底栏
+
 ## [1.2.11] - 2026-09-24
 
 ### 修复
@@ -215,6 +221,7 @@
 - 火山 Agent / Coding Plan 需使用账号级 AK/SK（非推理 API Key）
 - 智谱团队版需额外填写组织 ID / 项目 ID
 
+[1.2.12]: https://github.com/Eason4869/quota-board/releases/tag/v1.2.12
 [1.2.11]: https://github.com/Eason4869/quota-board/releases/tag/v1.2.11
 [1.2.10]: https://github.com/Eason4869/quota-board/releases/tag/v1.2.10
 [1.2.9]: https://github.com/Eason4869/quota-board/releases/tag/v1.2.9

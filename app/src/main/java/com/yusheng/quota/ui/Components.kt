@@ -85,8 +85,8 @@ fun GlassBottomBar(current: Int, onSelect: (Int) -> Unit) {
     val shape = RoundedCornerShape(26.dp)
     Box(
         Modifier
-            // 横向上再放开一些：胶囊更长、图标之间不再拥挤
-            .widthIn(min = 210.dp)
+            // 横向长度取中：比「仅包住图标」略长，又不像整条底栏那样占满
+            .widthIn(min = 180.dp)
             .shadow(
                 elevation = 10.dp,
                 shape = shape,
@@ -103,7 +103,7 @@ fun GlassBottomBar(current: Int, onSelect: (Int) -> Unit) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 10.dp, vertical = 6.dp),
+                .padding(horizontal = 8.dp, vertical = 6.dp),
             horizontalArrangement = Arrangement.SpaceEvenly,
             verticalAlignment = Alignment.CenterVertically,
         ) {
