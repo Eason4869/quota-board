@@ -441,29 +441,45 @@ object Parsers {
         else -> null
     }
 
-    /** Claude 订阅限速窗口：同一份数据在不同接口里字段名不同，逐个别名尝试 */
+    /**
+     * Claude 订阅限速窗口。
+     *
+     * 官方 OAuth 用量接口（`api.anthropic.com/api/oauth/usage`）返回
+     * `five_hour` / `seven_day` 两个对象，各含 `utilization`（已用百分比）与 `resets_at`；
+     * 另有若干变体字段名，逐个别名尝试。
+     */
     private fun claude(j: JSONObject): QueryResult {
         val periods = mutableListOf<Period>()
-        val fiveHour = num(j, "five_hour", "five_hour_used_pct")
+        val fiveHourObj = j.optJSONObject("five_hour")
+        val fiveHour = num(fiveHourObj, "utilization", "used_pct", "used")
+            ?: num(j, "five_hour_used_pct")
             ?: num(j.optJSONObject("5h"), "used_pct", "used")
         fiveHour?.let {
             periods += Period(
                 "5h", null, 100.0, usedPct = it,
-                resetAt = str(j, "five_hour_reset_at", "resets_at"),
+                resetAt = str(fiveHourObj, "resets_at") ?: str(j, "five_hour_reset_at", "resets_at"),
             )
         }
-        val weekly = num(j, "weekly", "weekly_used_pct")
+        val sevenDayObj = j.optJSONObject("seven_day")
+        val weekly = num(sevenDayObj, "utilization", "used_pct", "used")
+            ?: num(j, "weekly_used_pct", "weekly")
             ?: num(j.optJSONObject("seven_day"), "used_pct", "used")
         weekly?.let {
             periods += Period(
                 "weekly", null, 100.0, usedPct = it,
-                resetAt = str(j, "weekly_reset_at") ?: str(j.optJSONObject("seven_day"), "resets_at"),
+                resetAt = str(sevenDayObj, "resets_at") ?: str(j, "weekly_reset_at"),
             )
         }
+        val extra = num(j.optJSONObject("extra_usage"), "utilization")
         val first = periods.firstOrNull()
         return QueryResult(
-            subscription = first?.let { Subscription("Claude", it.remain, 100.0, "%", it.resetAt) },
+            subscription = first?.let {
+                Subscription(str(j, "subscriptionType") ?: "Claude", it.remain, 100.0, "%", it.resetAt)
+            },
             periods = periods,
+            extras = buildList {
+                extra?.let { add(Extra("extra_usage", "${fmt(it)}%")) }
+            },
         )
     }
 
@@ -488,14 +504,50 @@ object Parsers {
         )
     }
 
+    /**
+     * ChatGPT / Codex 用量（`backend-api/wham/usage`）。
+     *
+     * 响应里是 `rate_limit.primary_window` / `secondary_window`，各自带
+     * `used_percent`、`reset_at`（秒级）与 `limit_window_seconds` ——
+     * **按窗口时长认 5 小时 / 周**，不按 primary/secondary 的位置认
+     * （上游出现过只回一个窗口的情况）。
+     */
     private fun openAi(j: JSONObject): QueryResult {
+        val periods = mutableListOf<Period>()
+        val rate = j.optJSONObject("rate_limit") ?: j
+
+        fun windowOf(key: String): Period? {
+            val w = rate.optJSONObject(key) ?: return null
+            val percent = num(w, "used_percent", "usedPercent", "percent") ?: return null
+            val seconds = num(w, "limit_window_seconds", "window_seconds")?.toLong()
+            val label = when {
+                seconds == null -> if (key == "primary_window") "5h" else "weekly"
+                seconds <= 6 * 3600 -> "5h"
+                seconds <= 2 * 86400 -> "daily"
+                seconds <= 10 * 86400 -> "weekly"
+                else -> "monthly"
+            }
+            val resetV = w.opt("reset_at") ?: w.opt("resets_at")
+            val resetIso = when (val v = resetV) {
+                null, JSONObject.NULL -> null
+                is Number -> epochToIso(if (v.toLong() < 1_000_000_000_000L) v.toLong() * 1000 else v.toLong())
+                else -> v.toString()
+            }
+            return Period(label, percent, 100.0, usedPct = percent, resetAt = resetIso)
+        }
+
+        windowOf("primary_window")?.let { periods += it }
+        windowOf("secondary_window")?.let { periods += it }
+
+        val plan = str(j, "plan_type", "plan", "planName")
         val bal = num(j, "balance", "total_balance", "credits")
-        val plan = str(j, "plan", "planName")
+        val first = periods.firstOrNull()
         return QueryResult(
             balance = bal?.let { Balance(it, "$") },
-            subscription = if (plan != null || bal != null) {
-                Subscription(plan ?: "OpenAI", bal, null, "USD")
+            subscription = if (plan != null || first != null || bal != null) {
+                Subscription(plan ?: "ChatGPT", first?.remain, first?.total, "%", first?.resetAt)
             } else null,
+            periods = periods,
         )
     }
 

@@ -3,6 +3,13 @@
 本项目遵循 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/) 与
 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [1.2.20] - 2026-09-24
+
+- 移除全部弹出提示（查询结果、已是最新版等），导入失败改为字段下方红字
+- 移除手机 / 桌面切换，固定手机 UA
+- Claude 默认改用 OAuth 用量接口：粘贴 Claude Code 的 access token
+- ChatGPT / Codex 默认改用官方用量接口：粘贴 access token + 账号 ID，不再依赖登录页
+
 ## [1.2.19] - 2026-09-24
 
 - 登录页顶栏改为图标：适应宽度 / 手机·桌面 / 浏览器 / 刷新 / 全屏
@@ -160,6 +167,7 @@
 - 按量与订阅同屏展示，5 小时 / 周 / 月窗口
 - 桌面小组件、跟随系统主题、中英双语、JSON 导入导出
 
+[1.2.20]: https://github.com/Eason4869/quota-board/releases/tag/v1.2.20
 [1.2.19]: https://github.com/Eason4869/quota-board/releases/tag/v1.2.19
 [1.2.18]: https://github.com/Eason4869/quota-board/releases/tag/v1.2.18
 [1.2.17]: https://github.com/Eason4869/quota-board/releases/tag/v1.2.17

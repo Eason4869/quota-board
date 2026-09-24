@@ -143,8 +143,6 @@
     <string name="login_state_logged_in">Session detected — tap Fetch now.</string>
     <string name="login_state_unknown">Sign in below, then tap Fetch now.</string>
     <string name="login_fetch_failed">Could not read the quota endpoint from this page</string>
-    <string name="login_desktop_mode">Desktop page</string>
-    <string name="login_mobile_mode">Mobile page</string>
     <string name="login_google_blocked">Google sign-in blocks in-app browsers. Use “Open in browser”, or switch this account to a cloud function.</string>
     <string name="login_fit_width">Fit width</string>
     <string name="login_fullscreen">Full screen</string>
@@ -168,8 +166,6 @@
     <string name="action_paste">Paste</string>
 
     <!-- Feedback -->
-    <string name="toast_query_ok">Query OK</string>
-    <string name="toast_query_failed">Query failed</string>
     <string name="action_open_browser">Open in browser</string>
     <string name="action_switch_to_login">Switch to sign-in fetch</string>
     <string name="nav_home">Home</string>
@@ -186,16 +182,11 @@
     <string name="update_download_failed">Download failed on every source (direct + mirrors).</string>
     <string name="update_open_browser">Download in browser instead</string>
     <string name="update_install_failed">Could not open the installer. You can install the downloaded APK manually.</string>
-    <string name="update_check_failed">Update check failed — check your network.</string>
-    <string name="update_up_to_date">Already up to date</string>
     <string name="settings_auto_update">Check for updates on launch</string>
     <string name="update_none">Already up to date</string>
     <string name="action_check_update">Check for updates</string>
     <string name="toast_cookie_captured">Session captured</string>
-    <string name="toast_exported">Exported (copied to clipboard)</string>
-    <string name="toast_imported">Imported</string>
     <string name="toast_import_failed">Invalid JSON</string>
-    <string name="toast_cleared">Cleared</string>
     <string name="confirm_clear_title">Clear all accounts?</string>
     <string name="confirm_clear_body">This deletes every account and its credentials on this device. It cannot be undone.</string>
     <string name="action_confirm">Confirm</string>
@@ -206,6 +197,9 @@
     <string name="field_timeout_default">Default timeout (sec)</string>
     <string name="field_org_id">Organization ID (team plan)</string>
     <string name="field_project_id">Project ID (team plan)</string>
+    <string name="field_account_id">Account ID</string>
+    <string name="hint_claude_token">Paste the Claude Code OAuth token (`claudeAiOauth.accessToken` in ~/.claude/.credentials.json, or the “Claude Code-credentials” keychain item on macOS). No sign-in page needed.</string>
+    <string name="hint_codex_token">Paste the Codex CLI access token (tokens.access_token) and account ID (tokens.account_id) from ~/.codex/auth.json. No sign-in page needed.</string>
     <string name="field_wh_fallback">Proxy URL (optional fallback)</string>
     <string name="hint_zhipu_team">Fill both organization and project ID for a Zhipu team plan; leave empty for the personal plan.</string>
     <string name="hint_script_present">A custom extractor is configured. It is used first; the built-in parser takes over automatically if it fails.</string>

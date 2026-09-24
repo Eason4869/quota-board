@@ -140,8 +140,6 @@
     <string name="login_state_logged_in">已检测到登录态，点「抓取额度」。</string>
     <string name="login_state_unknown">请先在下方登录，再点「抓取额度」。</string>
     <string name="login_fetch_failed">没能从这个页面取到额度接口数据</string>
-    <string name="login_desktop_mode">桌面版页面</string>
-    <string name="login_mobile_mode">手机版页面</string>
     <string name="login_google_blocked">Google 登录会拒绝应用内浏览器：请用「在浏览器打开」登录，或把该账户改用云函数。</string>
     <string name="login_fit_width">适应宽度</string>
     <string name="login_fullscreen">全屏</string>
@@ -164,8 +162,6 @@
     <string name="err_mimo_fetch_failed">小米接口取数失败（%1$s）。也可以先在浏览器登录，再把 Cookie 粘贴到账户配置里。</string>
     <string name="action_paste">粘贴</string>
 
-    <string name="toast_query_ok">查询成功</string>
-    <string name="toast_query_failed">查询失败</string>
     <string name="action_open_browser">用浏览器打开</string>
     <string name="action_switch_to_login">改用登录取数</string>
     <string name="nav_home">主页</string>
@@ -182,16 +178,11 @@
     <string name="update_download_failed">直连与各镜像都下载失败了。</string>
     <string name="update_open_browser">改用浏览器下载</string>
     <string name="update_install_failed">无法调起安装器，可到文件管理器手动安装已下载的 APK。</string>
-    <string name="update_check_failed">检查更新失败，请检查网络。</string>
-    <string name="update_up_to_date">已是最新版本</string>
     <string name="settings_auto_update">启动时自动检查更新</string>
     <string name="update_none">已是最新版本</string>
     <string name="action_check_update">检查更新</string>
     <string name="toast_cookie_captured">已记录登录态</string>
-    <string name="toast_exported">已导出（已复制到剪贴板）</string>
-    <string name="toast_imported">已导入</string>
     <string name="toast_import_failed">JSON 无效</string>
-    <string name="toast_cleared">已清空</string>
     <string name="confirm_clear_title">清空所有账户？</string>
     <string name="confirm_clear_body">会删除本机所有账户及其凭证，不可撤销。</string>
     <string name="action_confirm">确认</string>
@@ -201,6 +192,9 @@
     <string name="field_timeout_default">默认超时（秒）</string>
     <string name="field_org_id">组织 ID（团队版）</string>
     <string name="field_project_id">项目 ID（团队版）</string>
+    <string name="field_account_id">账号 ID</string>
+    <string name="hint_claude_token">填 Claude Code 的 OAuth access token（`~/.claude/.credentials.json` 里的 `claudeAiOauth.accessToken`；macOS 在钥匙串「Claude Code-credentials」）。不需要登录页。</string>
+    <string name="hint_codex_token">填 Codex CLI 的 access token（`~/.codex/auth.json` → `tokens.access_token`）与账号 ID（同文件 `tokens.account_id`）。不需要登录页。</string>
     <string name="field_wh_fallback">代理地址（可选兜底）</string>
     <string name="hint_zhipu_team">组织 ID 与项目 ID 都填才走团队版接口；个人版请留空。</string>
     <string name="hint_script_present">已配置自定义提取器：会优先使用，解析失败时自动回退内置解析。</string>

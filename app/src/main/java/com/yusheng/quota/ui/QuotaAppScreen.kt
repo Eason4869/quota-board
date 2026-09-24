@@ -101,7 +101,6 @@ private data class LoginRequest(
 @Composable
 fun QuotaAppRoot(vm: QuotaViewModel) {
     val state by vm.state.collectAsState()
-    val snackbar = remember { SnackbarHostState() }
 
     var screen by remember { mutableStateOf(Screen.HOME) }
     var activeId by remember { mutableStateOf<String?>(null) }
@@ -117,11 +116,6 @@ fun QuotaAppRoot(vm: QuotaViewModel) {
     val dockHaze = remember { HazeState() }
 
     val ctx = LocalContext.current
-    val queryOk = stringResource(R.string.toast_query_ok)
-    val queryFailed = stringResource(R.string.toast_query_failed)
-    val upToDateText = stringResource(R.string.update_up_to_date)
-    val checkFailedText = stringResource(R.string.update_check_failed)
-
     // 从「安装未知应用」授权页返回后自动继续安装
     val lifecycleOwner = LocalLifecycleOwner.current
     DisposableEffect(lifecycleOwner) {
@@ -130,24 +124,6 @@ fun QuotaAppRoot(vm: QuotaViewModel) {
         }
         lifecycleOwner.lifecycle.addObserver(observer)
         onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
-    }
-
-    // 查询结束的统一反馈（VM 不持有文案，文案留在 UI 层，便于多语言）
-    LaunchedEffect(Unit) {
-        vm.events.collect { event ->
-            when (event) {
-                // 查询结果不弹提示：失败信息在账户详情页的错误卡片里，成功由数值本身体现
-                is QuotaViewModel.Event.QueryFinished -> Unit
-                is QuotaViewModel.Event.Message ->
-                    snackbar.showSnackbar(
-                        when (event.text) {
-                            "up_to_date" -> upToDateText
-                            "check_failed" -> checkFailedText
-                            else -> event.text
-                        }
-                    )
-            }
-        }
     }
 
     // 系统返回 / 侧边滑动返回：按页面层级回退，不再直接退出应用
@@ -165,7 +141,6 @@ fun QuotaAppRoot(vm: QuotaViewModel) {
         val showDock = screen == Screen.HOME || screen == Screen.CATALOG || screen == Screen.SETTINGS
         Scaffold(
             containerColor = Color.Transparent,
-            snackbarHost = { SnackbarHost(snackbar) },
             topBar = {
                 var title: String = stringResource(R.string.app_name)
                 var back: (() -> Unit)? = null
@@ -361,7 +336,6 @@ fun QuotaAppRoot(vm: QuotaViewModel) {
                         onImport = { accounts, settings -> vm.importJson(accounts, settings) },
                         onClear = { vm.clearAccounts() },
                         exportJson = { vm.exportPayload() },
-                        message = { msg -> vm.emit(msg) },
                     )
 
                     Screen.ABOUT -> AboutScreen(

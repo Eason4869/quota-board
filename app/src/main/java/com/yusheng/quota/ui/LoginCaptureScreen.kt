@@ -42,12 +42,10 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
-import androidx.compose.material.icons.filled.DesktopWindows
 import androidx.compose.material.icons.filled.Fullscreen
 import androidx.compose.material.icons.filled.FullscreenExit
 import androidx.compose.material.icons.filled.KeyboardHide
 import androidx.compose.material.icons.filled.OpenInBrowser
-import androidx.compose.material.icons.filled.PhoneAndroid
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Save
 import androidx.compose.material.icons.filled.SystemUpdate
@@ -232,26 +230,9 @@ private fun mobileUaFrom(raw: String?): String {
         .replace(Regex("\\swv\\b"), "")
 }
 
-/** 桌面 UA：布局是假的没关系，**版本号必须跟内核一致**，理由同上 */
-private fun desktopUaFrom(engineMajor: Int?): String =
-    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) " +
-        "Chrome/${engineMajor ?: 120}.0.0.0 Safari/537.36"
-
 /** 从 UA（或 WebView 内核包版本号）里取 Chrome 主版本 */
 private fun engineMajorOf(ua: String?): Int? =
     ua?.let { Regex("Chrome/(\\d+)").find(it)?.groupValues?.get(1)?.toIntOrNull() }
-
-/** SSO 站点按 UA 下发不同布局，进这些域一律用手机版 */
-private val SSO_HOSTS = listOf(
-    "account.xiaomi.com",
-    "accounts.google.com",
-    "login.microsoftonline.com",
-    "appleid.apple.com",
-)
-
-private fun isSsoHost(url: String?): Boolean =
-    url != null && SSO_HOSTS.any { url.contains(it, ignoreCase = true) }
-
 /**
  * 这条控制台报错像不像「内核太老，脚本根本跑不起来」。
  *
@@ -293,7 +274,6 @@ fun LoginCaptureScreen(
     var progress by remember { mutableIntStateOf(0) }
     var busy by remember { mutableStateOf(false) }
     var status by remember { mutableStateOf("") }
-    var desktopMode by remember { mutableStateOf(false) }
     var immersive by remember { mutableStateOf(false) }
     var webViewKey by remember { mutableIntStateOf(0) }
     val webView = remember { mutableStateOf<WebView?>(null) }
@@ -360,7 +340,6 @@ fun LoginCaptureScreen(
         engineMajorOf(defaultUa) ?: engineMajorOf(providerInfo)
     }
     val mobileUa = remember(defaultUa) { mobileUaFrom(defaultUa) }
-    val desktopUa = remember(engineMajor) { desktopUaFrom(engineMajor) }
     val engineTooOld = engineMajor != null && engineMajor < MODERN_ENGINE_FLOOR
 
     LaunchedEffect(initialUrl, startUrl, providerInfo, engineMajor) {
@@ -393,8 +372,6 @@ fun LoginCaptureScreen(
     val notLoggedInText = stringResource(R.string.login_state_unknown)
     val fetchFailedText = stringResource(R.string.login_fetch_failed)
     val openBrowserText = stringResource(R.string.action_open_browser)
-    val desktopText = stringResource(R.string.login_desktop_mode)
-    val mobileText = stringResource(R.string.login_mobile_mode)
     val googleBlockedText = stringResource(R.string.login_google_blocked)
     val fitText = stringResource(R.string.login_fit_width)
     val blankHint = stringResource(R.string.login_blank_hint)
@@ -561,7 +538,7 @@ fun LoginCaptureScreen(
         append("\nwebview=").append(providerInfo ?: "missing")
         append("\nengine_chrome=").append(engineMajor?.toString() ?: "?")
         append("\nengine_floor=").append(MODERN_ENGINE_FLOOR)
-        append("\nua_sent=").append(if (desktopMode) desktopUa else mobileUa)
+        append("\nua_sent=").append(mobileUa)
         append("\nurl=").append(currentUrl)
         append("\nstatus=").append(status.ifBlank { "-" })
         append("\nprogress=").append(progress)
@@ -656,23 +633,6 @@ fun LoginCaptureScreen(
                 ) {
                     Icon(Icons.Default.ZoomOutMap, contentDescription = fitText, modifier = Modifier.size(20.dp))
                 }
-                // 手机版 / 桌面版：图标即当前模式（默认手机版）
-                IconButton(
-                    modifier = Modifier.size(40.dp),
-                    onClick = {
-                        desktopMode = !desktopMode
-                        webView.value?.let { wv ->
-                            wv.settings.userAgentString = if (desktopMode) desktopUa else mobileUa
-                            startNewLoad(wv, reload = true)
-                        }
-                    },
-                ) {
-                    Icon(
-                        if (desktopMode) Icons.Default.DesktopWindows else Icons.Default.PhoneAndroid,
-                        contentDescription = if (desktopMode) mobileText else desktopText,
-                        modifier = Modifier.size(20.dp),
-                    )
-                }
                 IconButton(
                     modifier = Modifier.size(40.dp),
                     onClick = { openInBrowser(webView.value?.url ?: currentUrl) },
@@ -738,7 +698,8 @@ fun LoginCaptureScreen(
                             settings.setSupportMultipleWindows(true)
                             settings.allowFileAccess = false
                             settings.allowContentAccess = false
-                            settings.userAgentString = if (desktopMode) desktopUa else mobileUa
+                            // 固定手机 UA：登录页一律按手机版渲染（桌面版对验证码/SSO 只会更糟）
+                            settings.userAgentString = mobileUa
                             // 关闭「算法暗色」：它会给不支持暗色的站点整页刷黑，看起来就是黑屏
                             if (WebViewFeature.isFeatureSupported(WebViewFeature.ALGORITHMIC_DARKENING)) {
                                 WebSettingsCompat.setAlgorithmicDarkeningAllowed(settings, false)
@@ -797,13 +758,6 @@ fun LoginCaptureScreen(
                                         if (url != null) currentUrl = url
                                         progress = 10
                                         responded = true
-                                        // SSO 站点按 UA 下发不同布局：一进这些域就切回手机版
-                                        // （只影响后续加载，不重载，避免打断正在进行的登录）
-                                        if (desktopMode && isSsoHost(url)) {
-                                            desktopMode = false
-                                            view?.settings?.userAgentString = mobileUa
-                                            Log.i(TAG, "auto switch to mobile UA for SSO host")
-                                        }
                                         // 尽早挂错误钩子：入口 chunk 加载失败只以「未处理的 Promise 拒绝」
                                         // 形式出现，等到 onPageFinished 再挂就已经错过了
                                         view?.evaluateJavascript(ERROR_HOOK_JS) { }

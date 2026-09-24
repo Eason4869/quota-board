@@ -127,6 +127,15 @@ fun ConfigScreen(
                             value = cfg.apiKey,
                             onChange = { onCfgChange(cfg.copy(apiKey = it)) },
                         )
+                        when (template.id) {
+                            "openai" -> {
+                                Field(stringResource(R.string.field_account_id), cfg.accountId) {
+                                    onCfgChange(cfg.copy(accountId = it))
+                                }
+                                Hint(stringResource(R.string.hint_codex_token))
+                            }
+                            "claude" -> Hint(stringResource(R.string.hint_claude_token))
+                        }
                         if (template.id == "zhipu") {
                             Hint(stringResource(R.string.hint_zhipu))
                             Field(stringResource(R.string.field_org_id), cfg.orgId) {
@@ -455,16 +464,14 @@ fun BackupScreen(
     onImport: (List<Account>, Settings) -> Unit,
     onClear: () -> Unit,
     exportJson: () -> String,
-    message: (String) -> Unit,
 ) {
     var io by remember { mutableStateOf("") }
+    /** 提示就近显示在字段下方，不再弹浮层（浮层会和悬浮 Dock 打架） */
+    var ioError by remember { mutableStateOf("") }
     var confirmClear by remember { mutableStateOf(false) }
     val clipboard = LocalClipboardManager.current
 
-    val exportedMsg = stringResource(R.string.toast_exported)
-    val importedMsg = stringResource(R.string.toast_imported)
     val badJsonMsg = stringResource(R.string.toast_import_failed)
-    val clearedMsg = stringResource(R.string.toast_cleared)
 
     Column(
         Modifier
@@ -482,12 +489,16 @@ fun BackupScreen(
                     color = MaterialTheme.colorScheme.onSurface,
                 )
                 Spacer(Modifier.height(8.dp))
-                OutlinedTextField(
-                    value = io,
-                    onValueChange = { io = it },
-                    label = { Text(stringResource(R.string.field_io), fontSize = 12.sp) },
-                    modifier = Modifier.fillMaxWidth().height(120.dp),
-                )
+                    OutlinedTextField(
+                        value = io,
+                        onValueChange = { io = it; ioError = "" },
+                        label = { Text(stringResource(R.string.field_io), fontSize = 12.sp) },
+                        modifier = Modifier.fillMaxWidth().height(120.dp),
+                    )
+                    if (ioError.isNotBlank()) {
+                        Spacer(Modifier.height(6.dp))
+                        Text(ioError, fontSize = 12.sp, color = Color(0xFFFF5A6E))
+                    }
                 Spacer(Modifier.height(8.dp))
                 Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                     OutlinedButton(
@@ -495,7 +506,7 @@ fun BackupScreen(
                             val payload = exportJson()
                             io = payload
                             clipboard.setText(AnnotatedString(payload))
-                            message(exportedMsg)
+                            ioError = ""
                         },
                         modifier = Modifier.weight(1f),
                     ) { Text(stringResource(R.string.action_export)) }
@@ -503,10 +514,10 @@ fun BackupScreen(
                         onClick = {
                             val parsed = runCatching { ImportCodec.decode(io) }.getOrNull()
                             if (parsed == null) {
-                                message(badJsonMsg)
+                                ioError = badJsonMsg
                             } else {
                                 onImport(parsed.first, parsed.second)
-                                message(importedMsg)
+                                ioError = ""
                             }
                         },
                         modifier = Modifier.weight(1f),
@@ -532,7 +543,6 @@ fun BackupScreen(
                 TextButton(onClick = {
                     confirmClear = false
                     onClear()
-                    message(clearedMsg)
                 }) { Text(stringResource(R.string.action_confirm)) }
             },
             dismissButton = {

@@ -51,10 +51,11 @@ object Templates {
             nameRes = R.string.vendor_openai,
             descRes = R.string.vendor_openai_desc,
             color = 0xFF10A37F,
-            defaultMode = QueryMode.LOGIN,
-            modes = listOf(QueryMode.LOGIN, QueryMode.WEBHOOK, QueryMode.API),
+            // 默认走 API：粘贴 Codex CLI 的 access token + 账号 ID，不必in-app 打开 ChatGPT 登录页
+            defaultMode = QueryMode.API,
+            modes = listOf(QueryMode.API, QueryMode.LOGIN, QueryMode.WEBHOOK),
             defaults = QueryConfig(
-                mode = QueryMode.LOGIN,
+                mode = QueryMode.API,
                 url = "https://chatgpt.com/backend-api/wham/usage",
                 loginUrl = "https://chatgpt.com/",
             ),
@@ -64,11 +65,12 @@ object Templates {
             nameRes = R.string.vendor_claude,
             descRes = R.string.vendor_claude_desc,
             color = 0xFFD4A27F,
-            defaultMode = QueryMode.LOGIN,
-            modes = listOf(QueryMode.LOGIN, QueryMode.WEBHOOK, QueryMode.API),
+            // 默认走 API：粘贴 Claude Code 的 OAuth access token（官方 oauth/usage 接口）
+            defaultMode = QueryMode.API,
+            modes = listOf(QueryMode.API, QueryMode.LOGIN, QueryMode.WEBHOOK),
             defaults = QueryConfig(
-                mode = QueryMode.LOGIN,
-                url = "https://claude.ai/api/oauth/usage",
+                mode = QueryMode.API,
+                url = "https://api.anthropic.com/api/oauth/usage",
                 loginUrl = "https://claude.ai/",
             ),
         ),

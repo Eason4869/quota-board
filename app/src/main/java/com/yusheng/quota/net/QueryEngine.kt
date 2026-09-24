@@ -64,6 +64,8 @@ class QueryEngine(private val context: Context) {
             QueryMode.API -> {
                 if (template.id == "siliconflow") {
                     siliconFlowWithFallback(cfg, timeout)
+                } else if (template.id == "openai") {
+                    openAiUsageWithFallback(cfg, timeout)
                 } else {
                     requestJson(
                         method = cfg.method.ifBlank { "GET" },
@@ -288,13 +290,46 @@ class QueryEngine(private val context: Context) {
             headers["Authorization"] =
                 if (templateId == "zhipu") cfg.apiKey else "Bearer ${cfg.apiKey}"
         }
-        if (templateId == "zhipu") {
-            headers["Accept-Language"] = "en-US,en"
-            if (cfg.orgId.isNotBlank()) headers["bigmodel-organization"] = cfg.orgId.trim()
-            if (cfg.projectId.isNotBlank()) headers["bigmodel-project"] = cfg.projectId.trim()
+        when (templateId) {
+            "zhipu" -> {
+                headers["Accept-Language"] = "en-US,en"
+                if (cfg.orgId.isNotBlank()) headers["bigmodel-organization"] = cfg.orgId.trim()
+                if (cfg.projectId.isNotBlank()) headers["bigmodel-project"] = cfg.projectId.trim()
+            }
+            // Claude Code 的 OAuth 令牌走官方用量接口，必须带这个 beta 头
+            "claude" -> headers["anthropic-beta"] = "oauth-2025-04-20"
+            // Codex / ChatGPT 的 access token 需要配套账号 ID 与 CLI UA
+            "openai" -> {
+                headers["User-Agent"] = "codex-cli"
+                if (cfg.accountId.isNotBlank()) headers["chatgpt-account-id"] = cfg.accountId.trim()
+            }
         }
         if (cfg.method.equals("POST", true)) headers["Content-Type"] = "application/json"
         return headers
+    }
+
+    /**
+     * ChatGPT / Codex 用量。
+     *
+     * 官方 Codex CLI 调 `backend-api/wham/usage`；社区实现也有走 `backend-api/codex/usage` 的，
+     * 两个都试，谁先成功用谁。凭据是 CLI 落盘的 access token + 账号 ID，**不需要浏览器**。
+     */
+    private suspend fun openAiUsageWithFallback(cfg: QueryConfig, timeoutSec: Int): JSONObject {
+        val candidates = LinkedHashSet<String>().apply {
+            add(cfg.url)
+            add("https://chatgpt.com/backend-api/wham/usage")
+            add("https://chatgpt.com/backend-api/codex/usage")
+        }.filter { it.isNotBlank() }
+
+        val errors = mutableListOf<String>()
+        for (url in candidates) {
+            try {
+                return requestJson("GET", url, apiHeaders("openai", cfg), "", timeoutSec, QueryMode.API)
+            } catch (e: Exception) {
+                errors += "${url.substringAfter("chatgpt.com")} → ${e.message}"
+            }
+        }
+        throw IllegalStateException(errors.joinToString("\n"))
     }
 
     private fun loginHeaders(cfg: QueryConfig): Map<String, String> {
