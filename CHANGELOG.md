@@ -3,6 +3,14 @@
 本项目遵循 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/) 与
 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [1.2.22] - 2026-09-24
+
+- 新增厂商：GitHub Copilot（`copilot_internal/user`）、月之暗面 Moonshot（余额）
+- 两家都用官方矢量图标；厂商目录把新增项排在最后，「通用」固定最后一位
+- Novita 改用现行账单接口，旧接口自动兜底（金额单位自动区分）
+- 账户卡片支持拖动排序（首页长按卡片拖动）
+- 更新检测改为后台定时（每 6 小时），不再跟启动触发
+
 ## [1.2.21] - 2026-09-24
 
 - Gemini 默认改用配额接口：粘贴 OAuth token（+ 项目 ID），不再依赖登录页
@@ -173,6 +181,7 @@
 - 按量与订阅同屏展示，5 小时 / 周 / 月窗口
 - 桌面小组件、跟随系统主题、中英双语、JSON 导入导出
 
+[1.2.22]: https://github.com/Eason4869/quota-board/releases/tag/v1.2.22
 [1.2.21]: https://github.com/Eason4869/quota-board/releases/tag/v1.2.21
 [1.2.20]: https://github.com/Eason4869/quota-board/releases/tag/v1.2.20
 [1.2.19]: https://github.com/Eason4869/quota-board/releases/tag/v1.2.19

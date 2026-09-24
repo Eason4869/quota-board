@@ -71,13 +71,15 @@ class QuotaViewModel(app: Application) : AndroidViewModel(app) {
     val events: SharedFlow<Event> = _events.asSharedFlow()
 
     private var autoRefreshJob: Job? = null
+    private var updateCheckJob: Job? = null
 
     init {
         if (_state.value.settings.autoQueryOnStart && _state.value.accounts.isNotEmpty()) {
             refreshAll()
         }
         restartAutoRefresh()
-        if (_state.value.settings.autoCheckUpdate) checkUpdate(manual = false)
+        // 更新检测不跟启动：改为后台定时（见 restartUpdateCheck）
+        restartUpdateCheck()
     }
 
     // ── 应用内更新：检测 → 下载 → 直接调起安装器 ──────────────
@@ -219,6 +221,15 @@ class QuotaViewModel(app: Application) : AndroidViewModel(app) {
 
     fun clearAccounts() = persist { emptyList() }
 
+    /** 首页拖动排序：把 from 位置的账户移到 to 位置并落盘 */
+    fun moveAccount(from: Int, to: Int) = persist { list ->
+        if (from in list.indices && to in list.indices && from != to) {
+            list.toMutableList().apply { add(to, removeAt(from)) }
+        } else {
+            list
+        }
+    }
+
     /** 导出 JSON（含凭证，提示用户妥善保管） */
     fun exportPayload(): String =
         ImportCodec.encode(_state.value.accounts, _state.value.settings)
@@ -324,6 +335,28 @@ class QuotaViewModel(app: Application) : AndroidViewModel(app) {
                 if (_state.value.accounts.isNotEmpty()) refreshAll()
             }
         }
+        // 设置变化时同步重排更新检测（幂等）
+        restartUpdateCheck()
+    }
+
+    /**
+     * 更新检测：**不跟启动**，改为后台定时轮询（默认每 6 小时一次）。
+     * 检测结果只更新「关于」页那一行的状态，不弹任何浮层。
+     */
+    private fun restartUpdateCheck() {
+        updateCheckJob?.cancel()
+        if (!_state.value.settings.autoCheckUpdate) return
+        updateCheckJob = viewModelScope.launch {
+            while (isActive) {
+                delay(UPDATE_CHECK_INTERVAL_MS)
+                checkUpdate(manual = false)
+            }
+        }
+    }
+
+    private companion object {
+        /** 定时检测间隔：6 小时 */
+        const val UPDATE_CHECK_INTERVAL_MS = 6 * 60 * 60 * 1000L
     }
 
     /**

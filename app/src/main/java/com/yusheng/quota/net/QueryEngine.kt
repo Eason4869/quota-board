@@ -70,6 +70,8 @@ class QueryEngine(private val context: Context) {
                     geminiQuotaFetch(cfg, timeout)
                 } else if (template.id == "minimax") {
                     miniMaxUsageWithFallback(cfg, timeout)
+                } else if (template.id == "novita") {
+                    novitaUsageWithFallback(cfg, timeout)
                 } else {
                     requestJson(
                         method = cfg.method.ifBlank { "GET" },
@@ -291,10 +293,21 @@ class QueryEngine(private val context: Context) {
         val headers = mutableMapOf("Accept" to "application/json")
         if (cfg.apiKey.isNotBlank()) {
             // 智谱使用裸 Key，不加 Bearer
-            headers["Authorization"] =
-                if (templateId == "zhipu") cfg.apiKey else "Bearer ${cfg.apiKey}"
+            headers["Authorization"] = when (templateId) {
+                "zhipu" -> cfg.apiKey
+                // GitHub 用 token 前缀，不是 Bearer
+                "copilot" -> "token ${cfg.apiKey}"
+                else -> "Bearer ${cfg.apiKey}"
+            }
         }
         when (templateId) {
+            // Copilot 的私有接口要求 VS Code 客户端头，缺了会被当成非官方客户端
+            "copilot" -> {
+                headers["Editor-Version"] = "vscode/1.95.0"
+                headers["Editor-Plugin-Version"] = "copilot-chat/0.23.0"
+                headers["User-Agent"] = "GitHubCopilotChat/0.23.0"
+                headers["X-GitHub-Api-Version"] = "2022-11-28"
+            }
             "zhipu" -> {
                 headers["Accept-Language"] = "en-US,en"
                 if (cfg.orgId.isNotBlank()) headers["bigmodel-organization"] = cfg.orgId.trim()
@@ -383,6 +396,24 @@ class QueryEngine(private val context: Context) {
                 return requestJson("GET", url, apiHeaders("minimax", cfg), "", timeoutSec, QueryMode.API)
             } catch (e: Exception) {
                 errors += "/${url.substringAfter("/v1", "").take(34)} → ${e.message}"
+            }
+        }
+        throw IllegalStateException(errors.joinToString("\n"))
+    }
+
+    /** Novita 余额：现行账单路由优先，旧 `/v3/user/balance` 兜底（两者金额单位不同，解析层已区分） */
+    private suspend fun novitaUsageWithFallback(cfg: QueryConfig, timeoutSec: Int): JSONObject {
+        val candidates = LinkedHashSet<String>().apply {
+            add(cfg.url)
+            add("https://api.novita.ai/openapi/v1/billing/balance/detail")
+            add("https://api.novita.ai/v3/user/balance")
+        }.filter { it.isNotBlank() }
+        val errors = mutableListOf<String>()
+        for (url in candidates) {
+            try {
+                return requestJson("GET", url, apiHeaders("novita", cfg), "", timeoutSec, QueryMode.API)
+            } catch (e: Exception) {
+                errors += "${url.substringAfter("novita.ai").take(34)} → ${e.message}"
             }
         }
         throw IllegalStateException(errors.joinToString("\n"))

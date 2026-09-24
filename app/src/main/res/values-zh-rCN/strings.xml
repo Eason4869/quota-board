@@ -178,7 +178,7 @@
     <string name="update_download_failed">直连与各镜像都下载失败了。</string>
     <string name="update_open_browser">改用浏览器下载</string>
     <string name="update_install_failed">无法调起安装器，可到文件管理器手动安装已下载的 APK。</string>
-    <string name="settings_auto_update">启动时自动检查更新</string>
+    <string name="settings_auto_update">自动定时检查更新（每 6 小时）</string>
     <string name="update_none">已是最新版本</string>
     <string name="action_check_update">检查更新</string>
     <string name="toast_cookie_captured">已记录登录态</string>
@@ -208,6 +208,12 @@
     <string name="vendor_stepfun_desc">账户余额</string>
     <string name="vendor_novita">Novita AI</string>
     <string name="vendor_novita_desc">账户余额</string>
+    <string name="vendor_moonshot">月之暗面 Moonshot</string>
+    <string name="vendor_moonshot_desc">按量余额</string>
+    <string name="vendor_copilot">GitHub Copilot</string>
+    <string name="vendor_copilot_desc">Premium 请求额度</string>
+    <string name="hint_moonshot_key">填 Moonshot 开放平台（platform.moonshot.cn）的 API Key。</string>
+    <string name="hint_copilot_token">填有 Copilot 权限的 GitHub OAuth token（`gh auth token` 即可拿到）。</string>
 
     <string name="err_need_aksk">请填写 AccessKey ID / SecretAccessKey</string>
     <string name="err_need_url">请填写查询 URL</string>

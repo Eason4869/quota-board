@@ -10,6 +10,7 @@ import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -22,6 +23,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.ui.zIndex
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
@@ -56,13 +58,17 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
@@ -222,6 +228,7 @@ fun QuotaAppRoot(vm: QuotaViewModel) {
                         onOpen = { activeId = it; vm.setActive(it); screen = Screen.DETAIL },
                         onDelete = { vm.deleteAccount(it) },
                         onAdd = { screen = Screen.CATALOG },
+                        onMove = { from, to -> vm.moveAccount(from, to) },
                         bottomPadding = if (showDock) DockSpace else 0.dp,
                     )
 
@@ -512,8 +519,13 @@ private fun HomeScreen(
     onOpen: (String) -> Unit,
     onDelete: (String) -> Unit,
     onAdd: () -> Unit,
+    onMove: (Int, Int) -> Unit = { _, _ -> },
     bottomPadding: Dp = 0.dp,
 ) {
+    // 长按卡片拖动排序：按行高换算目标位置，边拖边落位
+    var dragId by remember { mutableStateOf<String?>(null) }
+    var dragDy by remember { mutableFloatStateOf(0f) }
+    val rowPx = with(LocalDensity.current) { 86.dp.toPx() }
     if (state.accounts.isEmpty()) {
         Box(Modifier.fillMaxSize().padding(24.dp), contentAlignment = Alignment.Center) {
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
@@ -548,6 +560,32 @@ private fun HomeScreen(
                 querying = state.querying.contains(account.id),
                 onOpen = { onOpen(account.id) },
                 onDelete = { onDelete(account.id) },
+                modifier = Modifier
+                    .zIndex(if (dragId == account.id) 1f else 0f)
+                    .graphicsLayer {
+                        translationY = if (dragId == account.id) dragDy else 0f
+                        shadowElevation = if (dragId == account.id) 16f else 0f
+                    }
+                    .pointerInput(account.id) {
+                        detectDragGesturesAfterLongPress(
+                            onDragStart = { dragId = account.id; dragDy = 0f },
+                            onDrag = { change, delta ->
+                                change.consume()
+                                dragDy += delta.y
+                                val from = state.accounts.indexOfFirst { it.id == account.id }
+                                val steps = (dragDy / rowPx).roundToInt()
+                                if (from >= 0 && steps != 0) {
+                                    val to = (from + steps).coerceIn(0, state.accounts.lastIndex)
+                                    if (to != from) {
+                                        onMove(from, to)
+                                        dragDy -= (to - from) * rowPx
+                                    }
+                                }
+                            },
+                            onDragEnd = { dragId = null; dragDy = 0f },
+                            onDragCancel = { dragId = null; dragDy = 0f },
+                        )
+                    },
             )
         }
     }
@@ -596,6 +634,7 @@ private fun AccountRow(
     querying: Boolean,
     onOpen: () -> Unit,
     onDelete: () -> Unit,
+    modifier: Modifier = Modifier,
 ) {
     val tpl = Templates.byId(account.templateId)
     val result = account.result
@@ -604,7 +643,7 @@ private fun AccountRow(
     val failedText = stringResource(R.string.state_failed)
 
     Row(
-        modifier = Modifier
+        modifier = modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(16.dp))
             .background(MaterialTheme.colorScheme.surface)

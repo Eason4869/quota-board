@@ -38,6 +38,8 @@ object Parsers {
             "siliconflow" -> siliconFlow(json)
             "stepfun" -> stepFun(json)
             "novita" -> novita(json)
+            "moonshot" -> moonshot(json)
+            "copilot" -> copilot(json)
             "xiaomi" -> mimo(json)
             "kimi" -> kimi(json)
             "zhipu" -> zhipu(json, context)
@@ -126,10 +128,59 @@ object Parsers {
     /** GET https://api.novita.ai/v3/user/balance → availableBalance（单位 0.0001 USD） */
     private fun novita(j: JSONObject): QueryResult {
         val raw = num(j, "availableBalance") ?: 0.0
-        val usd = raw / 10000.0
+        // 旧 /v3/user/balance 以 0.0001 USD 为单位；新账单接口直接给美元
+        val usd = if (raw > 100_000) raw / 10000.0 else raw
         return QueryResult(
             balance = Balance(usd, "$"),
             extras = listOf(Extra("availableBalance", fmt(raw))),
+        )
+    }
+
+    /** GET https://api.moonshot.cn/v1/users/me/balance → data{available_balance,...} */
+    private fun moonshot(j: JSONObject): QueryResult {
+        val d = j.optJSONObject("data") ?: j
+        val amount = num(d, "available_balance", "availableBalance", "balance") ?: 0.0
+        return QueryResult(
+            balance = Balance(amount, "¥"),
+            extras = buildList {
+                num(d, "voucher_balance", "voucherBalance")?.let { add(Extra("voucher", fmt(it))) }
+                num(d, "cash_balance", "cashBalance")?.let { add(Extra("cash", fmt(it))) }
+            },
+        )
+    }
+
+    /**
+     * GET https://api.github.com/copilot_internal/user
+     * → `quota_snapshots.{premium_interactions,chat,completions}{remaining,entitlement,percent_remaining,unlimited}`
+     */
+    private fun copilot(j: JSONObject): QueryResult {
+        val periods = mutableListOf<Period>()
+        val snapshots = j.optJSONObject("quota_snapshots")
+        val labels = listOf(
+            "premium_interactions" to "premium",
+            "chat" to "chat",
+            "completions" to "completions",
+        )
+        labels.forEach { (key, label) ->
+            val s = snapshots?.optJSONObject(key) ?: return@forEach
+            if (s.optBoolean("unlimited", false)) return@forEach
+            val entitlement = num(s, "entitlement") ?: 0.0
+            val remaining = num(s, "remaining") ?: 0.0
+            if (entitlement <= 0.0) return@forEach
+            val used = (entitlement - remaining).coerceAtLeast(0.0)
+            periods += Period(
+                label = label,
+                used = used,
+                total = entitlement,
+                resetAt = str(j, "quota_reset_date_utc", "quota_reset_date"),
+            )
+        }
+        val first = periods.firstOrNull()
+        return QueryResult(
+            subscription = if (first != null || j.has("copilot_plan")) {
+                Subscription(str(j, "copilot_plan", "plan") ?: "Copilot", first?.remain, first?.total, "requests", first?.resetAt)
+            } else null,
+            periods = periods,
         )
     }
 

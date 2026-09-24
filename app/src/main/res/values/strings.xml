@@ -182,7 +182,7 @@
     <string name="update_download_failed">Download failed on every source (direct + mirrors).</string>
     <string name="update_open_browser">Download in browser instead</string>
     <string name="update_install_failed">Could not open the installer. You can install the downloaded APK manually.</string>
-    <string name="settings_auto_update">Check for updates on launch</string>
+    <string name="settings_auto_update">Periodic update check (every 6 h)</string>
     <string name="update_none">Already up to date</string>
     <string name="action_check_update">Check for updates</string>
     <string name="toast_cookie_captured">Session captured</string>
@@ -214,6 +214,12 @@
     <string name="vendor_stepfun_desc">Account balance</string>
     <string name="vendor_novita">Novita AI</string>
     <string name="vendor_novita_desc">Account balance</string>
+    <string name="vendor_moonshot">Moonshot</string>
+    <string name="vendor_moonshot_desc">Pay-as-you-go balance</string>
+    <string name="vendor_copilot">GitHub Copilot</string>
+    <string name="vendor_copilot_desc">Premium requests quota</string>
+    <string name="hint_moonshot_key">Paste a Moonshot (platform.moonshot.cn) API key.</string>
+    <string name="hint_copilot_token">Paste a GitHub OAuth token with Copilot access (`gh auth token`).</string>
 
     <!-- Query errors -->
     <string name="err_need_aksk">Please fill in AccessKey ID / SecretAccessKey</string>

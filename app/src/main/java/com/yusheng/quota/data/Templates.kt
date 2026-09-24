@@ -219,7 +219,8 @@ object Templates {
             modes = listOf(QueryMode.API, QueryMode.WEBHOOK),
             defaults = QueryConfig(
                 mode = QueryMode.API,
-                url = "https://api.novita.ai/v3/user/balance",
+                // 官方现行账单路由；旧 /v3/user/balance 由引擎兜底
+                url = "https://api.novita.ai/openapi/v1/billing/balance/detail",
             ),
         ),
         Template(
@@ -248,6 +249,30 @@ object Templates {
         ),
 
         // ── 通用（永远最后）──
+        Template(
+            id = "moonshot",
+            nameRes = R.string.vendor_moonshot,
+            descRes = R.string.vendor_moonshot_desc,
+            color = 0xFF16191E,
+            defaultMode = QueryMode.API,
+            modes = listOf(QueryMode.API, QueryMode.WEBHOOK),
+            defaults = QueryConfig(
+                mode = QueryMode.API,
+                url = "https://api.moonshot.cn/v1/users/me/balance",
+            ),
+        ),
+        Template(
+            id = "copilot",
+            nameRes = R.string.vendor_copilot,
+            descRes = R.string.vendor_copilot_desc,
+            color = 0xFF24292F,
+            defaultMode = QueryMode.API,
+            modes = listOf(QueryMode.API, QueryMode.WEBHOOK),
+            defaults = QueryConfig(
+                mode = QueryMode.API,
+                url = "https://api.github.com/copilot_internal/user",
+            ),
+        ),
         Template(
             id = "generic",
             nameRes = R.string.vendor_generic,
