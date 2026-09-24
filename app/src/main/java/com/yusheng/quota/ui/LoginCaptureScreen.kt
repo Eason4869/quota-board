@@ -96,6 +96,95 @@ private const val TAG = "QuotaLogin"
 private const val LOAD_WATCHDOG_MS = 10_000L
 
 /**
+ * 卡死看门狗：`onPageStarted` 已经回调过（所以「没响应」那条判断不成立），
+ * 但到了这个时间点还没等到 `onPageFinished` —— 正文一直没下完。
+ *
+ * 表现和「站点不可达」一模一样（白屏、零提示、零回调），原因却完全不同：
+ * 一个是压根没连上，一个是连上了卡在半路。只靠「有没有回调」区分不了这两者。
+ */
+private const val STALL_WATCHDOG_MS = 16_000L
+
+/** 控制台消息 / 页面错误各留几条 —— 白屏只需要头几条，多了没用还挤占复制出来的长度 */
+private const val MAX_DIAG_LINES = 3
+
+/**
+ * 页面状态的只读探针，返回一个 JSON 字符串（见 decodeProbe）。
+ *
+ * 为什么不能只看 `innerText` 长度：`document.body` 为空时它也返回 0，于是
+ * 「HTML 根本没下来」和「HTML 下来了但脚本没渲染」会得出同一个结论 —— 而这俩的
+ * 修法完全不同。这里把能区分的字段一次全取回来：
+ *  - `ready`：`interactive` 卡住 = 正文还在下；`complete` = 下完了
+ *  - `js` / `js1`：页面自己注入的 `<script src>`。这个站点（rspack 打包）的壳里
+ *    只有一个内联运行时，入口 chunk 是运行时**后来插入**的 —— 所以 `js=0`
+ *    就等于「运行时没跑到插入那一步」，`js>=1` 但 `root=0` 就等于「chunk 没加载成」
+ *  - `res` / `badN` / `bad`：`performance` 里记录到的子资源请求数与失败的（HTTP >= 400）。
+ *    主框架之外的失败在 `onReceivedError` 里是被 `isForMainFrame` 过滤掉的盲区
+ *  - `errJs`：页面里 `window.onerror` / `unhandledrejection` 钩子记下的头几条。
+ *    `ChunkLoadError` 正是以 **未处理的 Promise 拒绝** 形式冒出来的，
+ *    `onConsoleMessage` 不保证收得到，所以单独钩一条
+ */
+private const val PROBE_JS = """
+    (function () {
+      var o = {};
+      function cut(x, n) { x = String(x == null ? '' : x); return x.length > n ? x.slice(0, n) : x; }
+      try {
+        var d = document, b = d.body, r = d.getElementById('root');
+        o.ready = cut(d.readyState, 12);
+        o.text = b ? (b.innerText || '').trim().length : -1;
+        o.html = b ? b.innerHTML.length : -1;
+        o.root = r ? r.childElementCount : -1;
+        o.rootHtml = r ? r.innerHTML.length : -1;
+        var sc = d.querySelectorAll('script[src]');
+        o.js = sc.length;
+        o.js1 = sc.length ? cut(sc[sc.length - 1].src, 90) : '';
+        o.pre = d.querySelectorAll('link[rel=preload]').length;
+        var rs = performance.getEntriesByType('resource') || [];
+        o.res = rs.length;
+        var bad = [];
+        for (var i = 0; i < rs.length; i++) {
+          var e = rs[i];
+          if (e.responseStatus && e.responseStatus >= 400) bad.push(e.responseStatus + ' ' + cut(e.name, 70));
+        }
+        o.badN = bad.length;
+        o.bad = bad.slice(0, 3).join(' ; ');
+      } catch (e) { o.err = cut(e && e.message || e, 90); }
+      if (window.__qbErr && window.__qbErr.length) o.errJs = window.__qbErr.slice(0, 3).join(' ; ');
+      return JSON.stringify(o);
+    })()
+"""
+
+/**
+ * 尽早挂上错误钩子（幂等，重复注入无副作用）。
+ *
+ * 钩的是 `error` 的**捕获阶段**：资源（script/link）加载失败时，事件的目标就是那个元素，
+ * 不会冒泡到 `window`，只有捕获阶段收得到 —— 这正是「入口 chunk 404」最直接的证据。
+ * `unhandledrejection` 则用来捞 `ChunkLoadError`。
+ */
+private const val ERROR_HOOK_JS = """
+    (function () {
+      if (window.__qbErr) return '1';
+      window.__qbErr = [];
+      window.addEventListener('error', function (ev) {
+        try {
+          var t = ev && ev.target;
+          if (t && (t.src || t.href)) { window.__qbErr.push('res ' + (t.src || t.href)); }
+          else {
+            window.__qbErr.push(String((ev && ev.message) || 'error') + ' @' +
+              String((ev && ev.filename) || '') + ':' + String(ev && ev.lineno));
+          }
+        } catch (e) {}
+      }, true);
+      window.addEventListener('unhandledrejection', function (ev) {
+        try {
+          var r = ev && ev.reason;
+          window.__qbErr.push('promise ' + String((r && r.name ? r.name + ': ' + r.message : r) || ev.reason));
+        } catch (e) {}
+      });
+      return '1';
+    })()
+"""
+
+/**
  * 现代控制台页面所需的内核下限（Chrome 主版本号）。
  *
  * 这个数字不是拍的：火山方舟控制台的入口 bundle（`ark-new-main/static/js/main.*.js`）里
@@ -197,6 +286,20 @@ fun LoginCaptureScreen(
     /** new WebView(ctx) 失败的原因（系统 WebView 被禁用等） */
     var setupError by remember { mutableStateOf("") }
     var diagCopied by remember { mutableStateOf(false) }
+    /** 本轮加载是否已 onPageFinished —— 与 responded 的区别就是「卡在半路」那一种 */
+    var finished by remember { mutableStateOf(false) }
+    /** 正文一直没下完（见 STALL_WATCHDOG_MS） */
+    var stalled by remember { mutableStateOf(false) }
+    /** 最近一次页面探针的结果，直接进诊断信息 */
+    var probe by remember { mutableStateOf<PageProbe?>(null) }
+    /** 主框架之外失败的子资源数（onReceivedError/HttpError 里原先被过滤掉的那部分） */
+    var resFail by remember { mutableIntStateOf(0) }
+    var resFailDetail by remember { mutableStateOf("") }
+    /** 任意级别的控制台消息，头几条 —— 一条都没有本身就说明「页面 JS 一行都没往外说」 */
+    var consoleAll by remember { mutableStateOf<List<String>>(emptyList()) }
+    /** 探针回来的序号 —— 复制要等的是「这一次」探针，不是上一次那份快照 */
+    var probeSeq by remember { mutableIntStateOf(0) }
+    var copyWantSeq by remember { mutableIntStateOf(-1) }
 
     val ctx = LocalContext.current
     val clipboard = LocalClipboardManager.current
@@ -237,6 +340,23 @@ fun LoginCaptureScreen(
     val engineOldText = engineMajor?.let { stringResource(R.string.login_engine_old, it, MODERN_ENGINE_FLOOR) }
     val progressAlpha by animateFloatAsState(if (progress in 1..99) 1f else 0f, label = "loginProgress")
 
+    /**
+     * 读一次页面状态（只读，不改页面）。结果进 `probe`，同时更新「空白」判定。
+     *
+     * 放在看门狗之前声明：卡死那一段也要顺手探一次，那一刻的 DOM 才是要看的。
+     */
+    fun probeDom(wv: WebView) {
+        wv.evaluateJavascript(PROBE_JS) { raw ->
+            val p = decodeProbe(raw)
+            if (p != null) {
+                probe = p
+                probeSeq += 1
+                looksBlank = p.blank
+                Log.i(TAG, "probe ${p.line()}")
+            }
+        }
+    }
+
     // 站点不可达时 WebViewClient 一个回调都不给，页面就是纯白且无提示；
     // 这里到点检查「这一轮有没有任何回调」，没有就明确告诉用户是网络不通。
     // 注意：这个 effect 里**只读不写**状态（responded 由 startNewLoad 复位），
@@ -248,6 +368,14 @@ fun LoginCaptureScreen(
         if (loadGen == gen && !responded) {
             noResponse = true
             Log.w(TAG, "watchdog: no callback in ${LOAD_WATCHDOG_MS}ms, url=$currentUrl")
+        }
+        // 第二段：已经回调过（所以不是「不可达」），但正文一直没下完。
+        // 这正是「连上了、卡在半路」那一种 —— 表现和不可达一模一样，只有分开计时才认得出来。
+        delay(STALL_WATCHDOG_MS - LOAD_WATCHDOG_MS)
+        if (loadGen == gen && responded && !finished) {
+            stalled = true
+            Log.w(TAG, "watchdog: still loading after ${STALL_WATCHDOG_MS}ms, url=$currentUrl")
+            webView.value?.let { probeDom(it) }
         }
     }
 
@@ -303,10 +431,28 @@ fun LoginCaptureScreen(
         noResponse = false
         sslFailed = false
         looksBlank = false
+        finished = false
+        stalled = false
+        probe = null
+        resFail = 0
+        resFailDetail = ""
+        consoleAll = emptyList()
+        copyWantSeq = -1
         status = ""
         if (reload) wv.reload() else wv.loadUrl(currentUrl.ifBlank { startUrl })
         loadGen += 1
         Log.i(TAG, "load start (reload=$reload) url=${currentUrl.ifBlank { startUrl }}")
+    }
+
+    /**
+     * 记一条**主框架之外**的加载失败。
+     *
+     * 原先这类失败被 `isForMainFrame` 过滤掉了 —— 那正好是白屏的盲区：
+     * 外壳 HTML 好好地下来了，入口 chunk 却挂了，页面一样是空的，而这条回调一声不响。
+     */
+    fun noteResourceFailure(detail: String) {
+        resFail += 1
+        if (resFailDetail.isBlank()) resFailDetail = detail.take(70)
     }
 
     /** 诊断信息：让用户直接复制出来贴进 issue，字段名保持英文，不随语言变 */
@@ -319,18 +465,39 @@ fun LoginCaptureScreen(
         append("\nua_sent=").append(if (desktopMode) desktopUa else mobileUa)
         append("\nurl=").append(currentUrl)
         append("\nstatus=").append(status.ifBlank { "-" })
+        append("\nprogress=").append(progress)
+        append("\nstarted=").append(if (responded) "yes" else "no")
+        append("\nfinished=").append(if (finished) "yes" else "no")
         append("\nblank=").append(if (looksBlank) "yes" else "no")
         append("\nssl_error=").append(if (sslFailed) "yes" else "no")
         append("\nno_response=").append(if (noResponse) "yes" else "no")
+        append("\nstalled=").append(if (stalled) "yes" else "no")
+        append("\nres_failed=").append(resFail)
+        if (resFailDetail.isNotBlank()) append(" first=").append(resFailDetail)
         append("\nsetup_error=").append(setupError.ifBlank { "-" })
+        // 这一段就是「白屏到底是哪一种」的判据，见 PROBE_JS 的注释
+        append("\ndom=").append(probe?.line() ?: "-")
         append("\nconsole=").append(consoleError.ifBlank { "-" })
+        append("\nconsole_all=").append(if (consoleAll.isEmpty()) "-" else consoleAll.joinToString(" | "))
     }
 
-    fun copyDiagnostics() {
+    fun copyNow() {
         val text = diagnostics()
         Log.i(TAG, text.replace('\n', ' '))
         clipboard.setText(AnnotatedString(text))
         diagCopied = true
+    }
+
+    fun copyDiagnostics() {
+        // 点这行的语义是「重新检测一次并复制」：用户是看着白屏点的，
+        // 要的正是这一刻的 DOM，而不是几秒前 onPageFinished 时那份
+        val wv = webView.value
+        if (wv == null) {
+            copyNow()
+            return
+        }
+        copyWantSeq = probeSeq + 1
+        probeDom(wv)
     }
 
     // 「已复制」提示两秒后自动消失，不影响下一轮操作
@@ -338,6 +505,14 @@ fun LoginCaptureScreen(
         if (diagCopied) {
             delay(2000)
             diagCopied = false
+        }
+    }
+
+    // 探针回来了才复制：点一下 = 重读页面状态 + 复制，避免贴出去的还是旧快照
+    LaunchedEffect(probeSeq) {
+        if (copyWantSeq in 0..probeSeq) {
+            copyWantSeq = -1
+            copyNow()
         }
     }
 
@@ -437,6 +612,10 @@ fun LoginCaptureScreen(
                                 /** 记录第一条脚本错误：白屏大多是脚本挂了 */
                                 override fun onConsoleMessage(msg: ConsoleMessage?): Boolean {
                                     val text = msg?.message().orEmpty()
+                                    if (text.isNotBlank() && consoleAll.size < MAX_DIAG_LINES) {
+                                        consoleAll = consoleAll + "${msg?.messageLevel()}: ${text.take(100)}"
+                                        Log.i(TAG, "console ${msg?.messageLevel()}: $text")
+                                    }
                                     if (consoleError.isBlank() &&
                                         (msg?.messageLevel() == ConsoleMessage.MessageLevel.ERROR || text.contains("error", true))
                                     ) {
@@ -464,6 +643,9 @@ fun LoginCaptureScreen(
                                     if (url != null) currentUrl = url
                                     progress = 10
                                     responded = true
+                                    // 尽早挂错误钩子：入口 chunk 加载失败只以「未处理的 Promise 拒绝」
+                                    // 形式出现，等到 onPageFinished 再挂就已经错过了
+                                    view?.evaluateJavascript(ERROR_HOOK_JS) { }
                                     Log.i(TAG, "onPageStarted $url")
                                 }
 
@@ -473,19 +655,14 @@ fun LoginCaptureScreen(
                                         CookieManager.getInstance().getCookie(url)?.let { cookie = it }
                                     }
                                     progress = 100
-                                    // 空白页检测：内容太少说明布局/脚本没跑起来。
-                                    // 用独立标志而不是写进 status —— 写进 status 会把下面
-                                    // 「内核过旧 / 脚本执行失败」这类更具体的判断盖掉，
-                                    // 而它们才是白屏的原因。
-                                    view?.evaluateJavascript(
-                                        "(function(){return String((document.body&&document.body.innerText||'').trim().length);})()"
-                                    ) { len ->
-                                        val n = len?.trim('"')?.toIntOrNull() ?: 0
-                                        looksBlank = n < 40
-                                        if (looksBlank) {
-                                            Log.w(TAG, "page looks blank (innerText=$n) url=$currentUrl")
-                                        }
-                                    }
+                                    finished = true
+                                    view?.evaluateJavascript(ERROR_HOOK_JS) { }
+                                    // 空白页检测：原先只看 innerText 长度，分辨不了
+                                    // 「HTML 压根没下来」和「HTML 下来了但脚本没渲染」——
+                                    // 现在整份 DOM / 资源状态一次取回来（见 PROBE_JS）。
+                                    // 走独立标志而不是写进 status：写进 status 会把下面
+                                    // 「内核过旧 / 脚本执行失败」这类更具体的判断盖掉。
+                                    view?.let { probeDom(it) }
                                 }
 
                                 override fun onReceivedError(
@@ -493,10 +670,16 @@ fun LoginCaptureScreen(
                                     request: WebResourceRequest?,
                                     error: WebResourceError?,
                                 ) {
-                                    if (request?.isForMainFrame == true) {
+                                    val req = request ?: return
+                                    if (req.isForMainFrame) {
                                         responded = true
                                         status = error?.description?.toString() ?: fetchFailedText
-                                        Log.w(TAG, "onReceivedError ${error?.errorCode}: $status")
+                                        Log.w(TAG, "onReceivedError main ${error?.errorCode}: $status")
+                                    } else {
+                                        // 子资源失败原先被这里过滤掉 —— 白屏的盲区正是在这：
+                                        // 外壳 HTML 好好地下来了、入口 chunk 挂了，页面一样是空的
+                                        noteResourceFailure("${error?.errorCode} ${shortUrl(req.url?.toString())}")
+                                        Log.w(TAG, "onReceivedError sub ${error?.errorCode} ${req.url}")
                                     }
                                 }
 
@@ -522,10 +705,17 @@ fun LoginCaptureScreen(
                                     request: WebResourceRequest?,
                                     errorResponse: WebResourceResponse?,
                                 ) {
-                                    if (request?.isForMainFrame == true) {
+                                    val req = request ?: return
+                                    if (req.isForMainFrame) {
                                         responded = true
                                         status = "HTTP ${errorResponse?.statusCode ?: 0}"
-                                        Log.w(TAG, "onReceivedHttpError $status")
+                                        Log.w(TAG, "onReceivedHttpError main $status")
+                                    } else {
+                                        // 同上：404 的 chunk 是「页面空白」最直接的证据
+                                        noteResourceFailure(
+                                            "${errorResponse?.statusCode ?: 0} ${shortUrl(req.url?.toString())}"
+                                        )
+                                        Log.w(TAG, "onReceivedHttpError sub ${errorResponse?.statusCode} ${req.url}")
                                     }
                                 }
 
@@ -645,7 +835,8 @@ fun LoginCaptureScreen(
                 // （脚本挂了 / 内核过旧），最后才是「没响应」和常规登录提示。
                 val engineBroken = consoleError.isNotBlank() && isLikelyEngineFailure(consoleError)
                 val needsAttention = providerInfo == null || setupError.isNotBlank() ||
-                    sslFailed || noResponse || isGoogle || engineTooOld || engineBroken
+                    sslFailed || noResponse || stalled || isGoogle || engineTooOld || engineBroken ||
+                    (looksBlank && resFail > 0)
                 Text(
                     text = when {
                         providerInfo == null -> webViewMissing
@@ -654,6 +845,11 @@ fun LoginCaptureScreen(
                         status.isNotBlank() -> status
                         engineBroken -> stringResource(R.string.login_script_failed, consoleError)
                         engineTooOld -> engineOldText ?: blankHint
+                        // 空白且确实有文件没下来：先把「谁没下来」讲出来，
+                        // 比泛泛的「内容为空」有用得多
+                        looksBlank && resFail > 0 ->
+                            stringResource(R.string.login_blank_res, resFail, resFailDetail)
+                        stalled -> stringResource(R.string.login_stalled, (STALL_WATCHDOG_MS / 1000).toInt())
                         looksBlank -> blankHint
                         noResponse -> noResponseText
                         isGoogle -> googleBlockedText
@@ -753,6 +949,19 @@ fun LoginCaptureScreen(
     }
 }
 
+/**
+ * 诊断信息里只留 `host + path`：完整 URL 又长又带 query，
+ * 贴出来会把真正要看的那几个字符淹掉。
+ */
+private fun shortUrl(raw: String?): String {
+    val s = raw ?: return ""
+    return runCatching {
+        val u = Uri.parse(s)
+        val host = u.host.orEmpty()
+        if (host.isBlank()) s else host + (u.path ?: "")
+    }.getOrDefault(s).take(70)
+}
+
 /** API 29–32 的强制暗色同样会把页面刷黑，统一关掉（更高版本用 ALGORITHMIC_DARKENING 分支） */
 @Suppress("DEPRECATION")
 private fun applyForceDarkOff(settings: WebSettings) {
@@ -842,4 +1051,59 @@ private fun decodeJsString(raw: String?): JSONObject? {
         is String -> runCatching { JSONObject(inner) }.getOrNull()
         else -> null
     }
+}
+
+/**
+ * PROBE_JS 的返回。取不到的字段一律留默认值 —— 诊断信息少一行，好过整段解析失败。
+ */
+private data class PageProbe(
+    val ready: String,
+    val text: Int,
+    val bodyHtml: Int,
+    val rootChildren: Int,
+    val rootHtml: Int,
+    val scriptSrc: Int,
+    val firstScript: String,
+    val resources: Int,
+    val badResources: Int,
+    val badDetail: String,
+    val jsErrors: String,
+    val probeError: String,
+) {
+    /** 页面几乎是空的：正文没字、根节点没有子节点 */
+    val blank: Boolean get() = text < 40 && rootChildren <= 0
+
+    /** 紧凑一行，直接进诊断信息（字段名保持英文，方便跨语言贴 issue） */
+    fun line(): String = buildString {
+        append("ready=").append(ready)
+        append(" text=").append(text)
+        append(" body=").append(bodyHtml)
+        append(" root=").append(rootChildren)
+        append("/").append(rootHtml)
+        append(" js=").append(scriptSrc)
+        if (firstScript.isNotBlank()) append(" js1=").append(firstScript)
+        append(" res=").append(resources)
+        append(" bad=").append(badResources)
+        if (badDetail.isNotBlank()) append("(").append(badDetail).append(")")
+        if (jsErrors.isNotBlank()) append(" errJs=").append(jsErrors)
+        if (probeError.isNotBlank()) append(" probeErr=").append(probeError)
+    }
+}
+
+private fun decodeProbe(raw: String?): PageProbe? {
+    val obj = decodeJsString(raw) ?: return null
+    return PageProbe(
+        ready = obj.optString("ready", "?"),
+        text = obj.optInt("text", -1),
+        bodyHtml = obj.optInt("html", -1),
+        rootChildren = obj.optInt("root", -1),
+        rootHtml = obj.optInt("rootHtml", -1),
+        scriptSrc = obj.optInt("js", -1),
+        firstScript = obj.optString("js1", ""),
+        resources = obj.optInt("res", -1),
+        badResources = obj.optInt("badN", 0),
+        badDetail = obj.optString("bad", ""),
+        jsErrors = obj.optString("errJs", ""),
+        probeError = obj.optString("err", ""),
+    )
 }

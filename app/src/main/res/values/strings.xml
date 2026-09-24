@@ -150,6 +150,8 @@
     <string name="login_fullscreen">Full screen</string>
     <string name="login_exit_fullscreen">Exit full screen</string>
     <string name="login_blank_hint">Page looks empty. Try “Fit width” / “Desktop page”, or sign in with a browser and paste the Cookie in the account settings.</string>
+    <string name="login_blank_res">The page is blank and %1$d of its own files failed to load (first: %2$s). A network or proxy is most likely blocking them — retry, or switch networks.</string>
+    <string name="login_stalled">The page never finished loading: it started but the content was still not downloaded after %1$d seconds. This site is being cut off mid-transfer on your current network. Try another network, or sign in with a browser and paste the Cookie instead.</string>
     <string name="login_webview_missing">System WebView is missing or disabled. Please enable/update “Android System WebView”, or sign in with a browser and paste the Cookie instead.</string>
     <string name="login_ssl_error">Certificate check failed: something on this network may be intercepting HTTPS (a proxy or security software). Try another network — mobile data, for example — or sign in with a browser and paste the Cookie into the account settings.</string>
     <string name="login_no_response">The page showed no response within %1$d seconds: it never started loading and reported no error. This site may be unreachable on your current network. Try another network, or sign in with a browser and paste the Cookie instead.</string>
