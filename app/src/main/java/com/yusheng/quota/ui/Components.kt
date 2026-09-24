@@ -63,7 +63,7 @@ fun logoResFor(templateId: String): Int = when (templateId) {
     else -> R.drawable.logo_generic
 }
 
-/** 底部玻璃导航：主页 / 添加 / 设置 */
+/** 液态玻璃底栏：仅图标（主页 / 添加 / 设置） */
 @Composable
 fun GlassBottomBar(current: Int, onSelect: (Int) -> Unit) {
     val items = listOf(
@@ -71,40 +71,55 @@ fun GlassBottomBar(current: Int, onSelect: (Int) -> Unit) {
         Triple(Icons.Default.Add, stringResource(R.string.nav_add), 1),
         Triple(Icons.Default.Settings, stringResource(R.string.nav_settings), 2),
     )
-    Row(
-        modifier = Modifier
+    Box(
+        Modifier
             .fillMaxWidth()
-            .padding(horizontal = 18.dp, vertical = 12.dp)
-            .clip(RoundedCornerShape(28.dp))
-            .background(Glass.surface())
-            .border(1.dp, Glass.stroke(), RoundedCornerShape(28.dp))
-            .padding(vertical = 8.dp),
-        horizontalArrangement = Arrangement.SpaceEvenly,
-        verticalAlignment = Alignment.CenterVertically,
+            .padding(horizontal = 22.dp, vertical = 14.dp),
     ) {
-        items.forEach { (icon, label, idx) ->
-            val selected = current == idx
-            Column(
-                modifier = Modifier
-                    .clip(RoundedCornerShape(18.dp))
-                    .background(if (selected) Color.White.copy(alpha = 0.18f) else Color.Transparent)
-                    .clickable { onSelect(idx) }
-                    .padding(horizontal = 18.dp, vertical = 6.dp),
-                horizontalAlignment = Alignment.CenterHorizontally,
-            ) {
-                Icon(
-                    icon,
-                    contentDescription = label,
-                    tint = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.size(22.dp),
-                )
-                Spacer(Modifier.height(2.dp))
-                Text(
-                    label,
-                    fontSize = 10.sp,
-                    color = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
-                    fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal,
-                )
+        // 高光描边
+        Box(
+            Modifier
+                .matchParentSize()
+                .clip(RoundedCornerShape(32.dp))
+                .background(Glass.highlight())
+                .border(1.2.dp, Glass.stroke(), RoundedCornerShape(32.dp)),
+        )
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(32.dp))
+                .background(Glass.surfaceStrong())
+                .padding(vertical = 10.dp),
+            horizontalArrangement = Arrangement.SpaceEvenly,
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            items.forEach { (icon, label, idx) ->
+                val selected = current == idx
+                Box(
+                    modifier = Modifier
+                        .size(52.dp)
+                        .clip(RoundedCornerShape(18.dp))
+                        .background(
+                            if (selected) {
+                                MaterialTheme.colorScheme.primary.copy(alpha = 0.18f)
+                            } else {
+                                Color.Transparent
+                            }
+                        )
+                        .clickable { onSelect(idx) },
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Icon(
+                        imageVector = icon,
+                        contentDescription = label,
+                        tint = if (selected) {
+                            MaterialTheme.colorScheme.primary
+                        } else {
+                            MaterialTheme.colorScheme.onSurfaceVariant
+                        },
+                        modifier = Modifier.size(24.dp),
+                    )
+                }
             }
         }
     }
@@ -152,9 +167,10 @@ fun SectionCard(
     Box(
         modifier = modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(18.dp))
-            .background(MaterialTheme.colorScheme.surface)
-            .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.6f), RoundedCornerShape(18.dp))
+            .clip(RoundedCornerShape(22.dp))
+            .background(Glass.highlight())
+            .border(1.dp, Glass.stroke(), RoundedCornerShape(22.dp))
+            .background(Glass.surfaceStrong())
             .padding(16.dp),
     ) { content() }
 }

@@ -1,10 +1,14 @@
 package com.yusheng.quota.ui
 
 import android.annotation.SuppressLint
+import android.content.ActivityNotFoundException
 import android.content.Intent
 import android.net.Uri
 import android.webkit.CookieManager
 import android.webkit.WebChromeClient
+import android.webkit.WebResourceError
+import android.webkit.WebResourceRequest
+import android.webkit.WebSettings
 import android.webkit.WebView
 import android.webkit.WebViewClient
 import androidx.compose.foundation.layout.Arrangement
@@ -19,8 +23,8 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawingPadding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.OpenInBrowser
 import androidx.compose.material.icons.filled.Refresh
-import androidx.compose.material.icons.filled.Share
 import androidx.compose.material3.Button
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -46,6 +50,10 @@ import androidx.compose.ui.viewinterop.AndroidView
 import androidx.activity.compose.BackHandler
 import com.yusheng.quota.R
 import org.json.JSONObject
+
+/** 纯 Chrome 手机 UA：去掉系统 WebView 的 `wv` 标记，避免站点识别后拒绝加载登录页 */
+private const val MOBILE_UA =
+    "Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Mobile Safari/537.36"
 
 /**
  * 应用内登录 + 取数。
@@ -75,7 +83,23 @@ fun LoginCaptureScreen(
     val loggedInText = stringResource(R.string.login_state_logged_in)
     val notLoggedInText = stringResource(R.string.login_state_unknown)
     val fetchFailedText = stringResource(R.string.login_fetch_failed)
+    val openBrowserText = stringResource(R.string.action_open_browser)
     val ctx = LocalContext.current
+
+    fun openInBrowser(rawUrl: String?) {
+        val target = rawUrl?.takeIf { it.isNotBlank() && it != "about:blank" } ?: startUrl
+        val intent = Intent(Intent.ACTION_VIEW, Uri.parse(target)).apply {
+            addCategory(Intent.CATEGORY_BROWSABLE)
+            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        }
+        try {
+            ctx.startActivity(Intent.createChooser(intent, openBrowserText))
+        } catch (_: ActivityNotFoundException) {
+            status = openBrowserText
+        } catch (_: Exception) {
+            status = openBrowserText
+        }
+    }
 
     // 返回键先走网页历史，退无可退再关闭登录页
     BackHandler {
@@ -83,7 +107,6 @@ fun LoginCaptureScreen(
         if (wv != null && wv.canGoBack()) wv.goBack() else onCancel()
     }
 
-    // 全屏覆盖层自己让开状态栏 / 导航栏 / 刘海，避免与系统栏“打架”
     Column(Modifier.fillMaxSize().safeDrawingPadding()) {
         Row(
             Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 8.dp),
@@ -107,13 +130,8 @@ fun LoginCaptureScreen(
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
-            IconButton(onClick = {
-                val url = webView.value?.url ?: currentUrl
-                runCatching {
-                    ctx.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)))
-                }
-            }) {
-                Icon(Icons.Default.Share, contentDescription = stringResource(R.string.action_open_browser))
+            IconButton(onClick = { openInBrowser(webView.value?.url ?: currentUrl) }) {
+                Icon(Icons.Default.OpenInBrowser, contentDescription = openBrowserText)
             }
             IconButton(onClick = { webView.value?.reload() }) {
                 Icon(Icons.Default.Refresh, contentDescription = stringResource(R.string.action_refresh))
@@ -129,24 +147,25 @@ fun LoginCaptureScreen(
 
         Box(Modifier.weight(1f)) {
             AndroidView(
-                factory = { ctx ->
-                    WebView(ctx).apply {
+                factory = { context ->
+                    WebView(context).apply {
                         settings.javaScriptEnabled = true
                         settings.domStorageEnabled = true
+                        settings.databaseEnabled = true
                         settings.loadWithOverviewMode = true
                         settings.useWideViewPort = true
-                        // 默认手机界面，避免桌面版页面在窄屏加载不全
-                        settings.userAgentString = settings.userAgentString
-                            ?.replace("Mobile Safari", "Mobile Safari")
-                            .let { ua ->
-                                val base = ua ?: "Mozilla/5.0 (Linux; Android 14; Mobile) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36"
-                                if (base.contains("Mobile", ignoreCase = true)) base
-                                else "$base Mobile"
-                            }
                         settings.setSupportZoom(true)
                         settings.builtInZoomControls = true
                         settings.displayZoomControls = false
                         settings.textZoom = 100
+                        settings.cacheMode = WebSettings.LOAD_DEFAULT
+                        settings.mixedContentMode = WebSettings.MIXED_CONTENT_COMPATIBILITY_MODE
+                        settings.javaScriptCanOpenWindowsAutomatically = true
+                        settings.mediaPlaybackRequiresUserGesture = false
+                        settings.allowFileAccess = false
+                        settings.allowContentAccess = false
+                        // 去掉 wv 标记 + 固定手机 UA，站点才会给出可登录的移动页
+                        settings.userAgentString = MOBILE_UA
                         CookieManager.getInstance().setAcceptCookie(true)
                         CookieManager.getInstance().setAcceptThirdPartyCookies(this, true)
                         webChromeClient = object : WebChromeClient() {
@@ -155,12 +174,38 @@ fun LoginCaptureScreen(
                             }
                         }
                         webViewClient = object : WebViewClient() {
+                            override fun onPageStarted(view: WebView?, url: String?, favicon: android.graphics.Bitmap?) {
+                                if (url != null) currentUrl = url
+                            }
+
                             override fun onPageFinished(view: WebView?, url: String?) {
                                 if (url != null) {
                                     currentUrl = url
                                     CookieManager.getInstance().getCookie(url)?.let { cookie = it }
                                 }
                                 progress = 100
+                            }
+
+                            override fun onReceivedError(
+                                view: WebView?,
+                                request: WebResourceRequest?,
+                                error: WebResourceError?,
+                            ) {
+                                if (request?.isForMainFrame == true) {
+                                    status = error?.description?.toString() ?: fetchFailedText
+                                }
+                            }
+
+                            @Deprecated("Deprecated in Java")
+                            @Suppress("DEPRECATION")
+                            override fun shouldOverrideUrlLoading(view: WebView?, url: String?): Boolean {
+                                if (url.isNullOrBlank()) return false
+                                if (url.startsWith("http://") || url.startsWith("https://") || url.startsWith("about:")) {
+                                    return false
+                                }
+                                // 非 http(s) 交给系统（mailto / market / 自定义 scheme）
+                                openInBrowser(url)
+                                return true
                             }
                         }
                         loadUrl(startUrl)
@@ -179,6 +224,15 @@ fun LoginCaptureScreen(
                 fontSize = 12.sp,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
+            Spacer(Modifier.height(8.dp))
+            OutlinedButton(
+                onClick = { openInBrowser(webView.value?.url ?: currentUrl) },
+                modifier = Modifier.fillMaxWidth(),
+            ) {
+                Icon(Icons.Default.OpenInBrowser, contentDescription = null, modifier = Modifier.height(18.dp))
+                Spacer(Modifier.height(0.dp))
+                Text(openBrowserText)
+            }
             Spacer(Modifier.height(8.dp))
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 OutlinedButton(

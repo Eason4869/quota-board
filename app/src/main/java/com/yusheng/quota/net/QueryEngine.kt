@@ -54,14 +54,20 @@ class QueryEngine(private val context: Context) {
                 timeoutSec = timeout,
                 mode = QueryMode.LOGIN,
             )
-            QueryMode.API -> requestJson(
-                method = cfg.method.ifBlank { "GET" },
-                url = apiUrl(template.id, cfg),
-                headers = apiHeaders(template.id, cfg),
-                body = jsonBodyIfPost(cfg.method),
-                timeoutSec = timeout,
-                mode = QueryMode.API,
-            )
+            QueryMode.API -> {
+                if (template.id == "siliconflow") {
+                    siliconFlowWithFallback(cfg, timeout)
+                } else {
+                    requestJson(
+                        method = cfg.method.ifBlank { "GET" },
+                        url = apiUrl(template.id, cfg),
+                        headers = apiHeaders(template.id, cfg),
+                        body = jsonBodyIfPost(cfg.method),
+                        timeoutSec = timeout,
+                        mode = QueryMode.API,
+                    )
+                }
+            }
         }
 
         runScriptExtractor(cfg, json)

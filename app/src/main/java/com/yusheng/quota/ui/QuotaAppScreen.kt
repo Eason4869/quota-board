@@ -57,6 +57,9 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.activity.compose.BackHandler
 import com.yusheng.quota.R
+import androidx.compose.foundation.background
+import androidx.compose.ui.graphics.Brush
+import com.yusheng.quota.ui.theme.Glass
 import com.yusheng.quota.data.Account
 import com.yusheng.quota.data.QueryConfig
 import com.yusheng.quota.data.QueryMode
@@ -114,9 +117,9 @@ fun QuotaAppRoot(vm: QuotaViewModel) {
         }
     }
 
-    Box(Modifier.fillMaxSize()) {
+    Box(Modifier.fillMaxSize().background(Glass.background())) {
         Scaffold(
-            containerColor = MaterialTheme.colorScheme.background,
+            containerColor = Color.Transparent,
             snackbarHost = { SnackbarHost(snackbar) },
             bottomBar = {
                 if (screen == Screen.HOME || screen == Screen.CATALOG || screen == Screen.SETTINGS) {
@@ -182,7 +185,7 @@ fun QuotaAppRoot(vm: QuotaViewModel) {
                         }
                     },
                     colors = TopAppBarDefaults.topAppBarColors(
-                        containerColor = MaterialTheme.colorScheme.background,
+                        containerColor = Color.Transparent,
                     ),
                 )
             },

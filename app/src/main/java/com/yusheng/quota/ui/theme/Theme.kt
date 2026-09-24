@@ -2,14 +2,12 @@ package com.yusheng.quota.ui.theme
 
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Typography
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.text.font.FontFamily
-import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.unit.sp
-import androidx.compose.material3.Typography
 
 private val Accent = Color(0xFFFF6900)
 
@@ -49,7 +47,7 @@ fun QuotaBoardTheme(
     }
     MaterialTheme(
         colorScheme = if (dark) DarkColors else LightColors,
-        typography = Typography().let { it },
+        typography = Typography(),
         content = content,
     )
 }
@@ -62,17 +60,57 @@ val PeriodColors = listOf(
     Color(0xFFC084FC),
 )
 
-/** 液态玻璃材质 */
+/**
+ * 液态玻璃材质：半透明表面 + 顶部高光 + 高光描边。
+ * Android 无系统 backdrop blur，用「上亮下暗 + 白描边」近似苹果 Liquid Glass。
+ */
 object Glass {
-    val surfaceLight = Color(0xB3FFFFFF)
-    val surfaceDark = Color(0x33FFFFFF)
-    val strokeLight = Color(0x66FFFFFF)
-    val strokeDark = Color(0x2EFFFFFF)
+    @Composable
+    fun isDark(): Boolean = MaterialTheme.colorScheme.background.luminance() < 0.5f
 
     @Composable
-    fun surface(): Color = if (isSystemInDarkTheme()) surfaceDark else surfaceLight
+    fun surface(): Color =
+        if (isDark()) Color.White.copy(alpha = 0.10f) else Color.White.copy(alpha = 0.72f)
 
     @Composable
-    fun stroke(): Color = if (isSystemInDarkTheme()) strokeDark else strokeLight
+    fun surfaceStrong(): Color =
+        if (isDark()) Color.White.copy(alpha = 0.16f) else Color.White.copy(alpha = 0.88f)
+
+    @Composable
+    fun stroke(): Color =
+        if (isDark()) Color.White.copy(alpha = 0.22f) else Color.White.copy(alpha = 0.92f)
+
+    @Composable
+    fun highlight(): Brush =
+        if (isDark()) {
+            Brush.verticalGradient(
+                0f to Color.White.copy(alpha = 0.18f),
+                0.45f to Color.White.copy(alpha = 0.04f),
+                1f to Color.Transparent,
+            )
+        } else {
+            Brush.verticalGradient(
+                0f to Color.White.copy(alpha = 0.55f),
+                0.45f to Color.White.copy(alpha = 0.12f),
+                1f to Color.Transparent,
+            )
+        }
+
+    @Composable
+    fun background(): Brush =
+        if (isDark()) {
+            Brush.verticalGradient(
+                0f to Color(0xFF121826),
+                0.45f to Color(0xFF0B0E13),
+                1f to Color(0xFF151C2A),
+            )
+        } else {
+            Brush.verticalGradient(
+                0f to Color(0xFFEAF1FB),
+                0.45f to Color(0xFFF7F9FC),
+                1f to Color(0xFFE7EEF8),
+            )
+        }
+
+    private fun Color.luminance(): Float = (0.299f * red + 0.587f * green + 0.114f * blue)
 }
-

@@ -172,10 +172,11 @@ object Templates {
             descRes = R.string.vendor_siliconflow_desc,
             color = 0xFF14B8A6,
             defaultMode = QueryMode.API,
-            modes = listOf(QueryMode.API, QueryMode.WEBHOOK),
+            modes = listOf(QueryMode.API, QueryMode.WEBHOOK, QueryMode.LOGIN),
             defaults = QueryConfig(
                 mode = QueryMode.API,
                 url = "https://api.siliconflow.cn/v1/user/info",
+                loginUrl = "https://account.siliconflow.cn/",
             ),
         ),
         Template(

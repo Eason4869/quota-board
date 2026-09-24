@@ -3,6 +3,20 @@
 本项目遵循 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/) 与
 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [1.2.4] - 2026-09-24
+
+### 修复
+
+- **登录 WebView**：改用纯 Chrome 手机 UA（去掉系统 `wv` 标记），站点不再拒绝加载登录页；开启 DOM / 混合内容 / 宽视口 / 缩放
+- **用浏览器打开**：改用系统 Chooser，并增加底部主按钮；非 http(s) 链接也会转交系统
+- **硅基流动**：`/v1/user/info` 返回 410（endpoint deprecated）时自动回退到控制台余额接口，并提示改用「登录取数」
+- **版本号**：安装包 versionName 与 Release 标签对齐
+
+### 新增
+
+- **液态玻璃 UI**：卡片 / 底栏 / 背景采用半透明玻璃 + 高光描边 + 顶部微亮渐变
+- **底栏仅图标**：去掉「主页 / 添加 / 设置」文字
+
 ## [1.2.0] - 2026-09-23
 
 ### 新增
@@ -73,6 +87,7 @@
 - 火山 Agent / Coding Plan 需使用账号级 AK/SK（非推理 API Key）
 - 智谱团队版需额外填写组织 ID / 项目 ID
 
+[1.2.4]: https://github.com/Eason4869/quota-board/releases/tag/v1.2.4
 [1.2.0]: https://github.com/Eason4869/quota-board/releases/tag/v1.2.0
 [1.1.0]: https://github.com/Eason4869/quota-board/releases/tag/v1.1.0
 [1.0.0]: https://github.com/Eason4869/quota-board/releases/tag/v1.0.0
