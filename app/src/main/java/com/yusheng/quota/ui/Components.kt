@@ -73,6 +73,7 @@ fun logoResFor(templateId: String): Int = when (templateId) {
     "novita" -> R.drawable.logo_novita
     "moonshot" -> R.drawable.logo_moonshot
     "copilot" -> R.drawable.logo_copilot
+    "qianwen" -> R.drawable.logo_qwen
     "claude" -> R.drawable.logo_claude
     "gemini" -> R.drawable.logo_gemini
     "openai" -> R.drawable.logo_openai

@@ -72,6 +72,8 @@ class QueryEngine(private val context: Context) {
                     miniMaxUsageWithFallback(cfg, timeout)
                 } else if (template.id == "novita") {
                     novitaUsageWithFallback(cfg, timeout)
+                } else if (template.id == "qianwen") {
+                    qianwenUsageWithFallback(cfg, timeout)
                 } else {
                     requestJson(
                         method = cfg.method.ifBlank { "GET" },
@@ -414,6 +416,52 @@ class QueryEngine(private val context: Context) {
                 return requestJson("GET", url, apiHeaders("novita", cfg), "", timeoutSec, QueryMode.API)
             } catch (e: Exception) {
                 errors += "${url.substringAfter("novita.ai").take(34)} → ${e.message}"
+            }
+        }
+        throw IllegalStateException(errors.joinToString("\n"))
+    }
+
+    /**
+     * 千问 Token Plan。
+     *
+     * 平台侧没有公开的额度文档接口，网关（`token-plan.maas.qianwenaiapi.com`）是 OpenAI 兼容层，
+     * 所以把「用户填的地址 → 网关常见额度路径 → 平台控制台接口」逐一探测；
+     * 只有能解析出内容的候选才算命中，避免把 401 与 SPA 兜底页当成成功。
+     * 全部失败时把每条路径的真实错误带出来，方便对着改「查询 URL」。
+     */
+    private suspend fun qianwenUsageWithFallback(cfg: QueryConfig, timeoutSec: Int): JSONObject {
+        val gateway = "https://token-plan.maas.qianwenaiapi.com/compatible-mode/v1"
+        val candidates = LinkedHashSet<String>().apply {
+            add(cfg.url)
+            add("$gateway/usage")
+            add("$gateway/user/info")
+            add("$gateway/user/balance")
+            add("$gateway/dashboard/billing/subscription")
+            add("$gateway/dashboard/billing/usage")
+            if (cfg.cookie.isNotBlank()) {
+                add("https://platform.qianwenai.com/api/v1/tokenPlan/usage")
+                add("https://platform.qianwenai.com/api/v1/balance")
+            }
+        }.filter { it.isNotBlank() }
+
+        val errors = mutableListOf<String>()
+        for (url in candidates) {
+            val console = url.contains("platform.qianwenai.com")
+            try {
+                val json = requestJson(
+                    method = "GET",
+                    url = url,
+                    headers = if (console) loginHeaders(cfg) else apiHeaders("qianwen", cfg),
+                    body = "",
+                    timeoutSec = timeoutSec,
+                    mode = if (console) QueryMode.LOGIN else QueryMode.API,
+                )
+                val parsed = Parsers.parse("qianwen", json, cfg.mapBalance, cfg.mapPlan, context)
+                val usable = parsed.balance != null || parsed.subscription != null || parsed.periods.isNotEmpty()
+                if (usable) return json
+                errors += "${url.substringAfter("://").take(48)} → 响应里没有可识别的额度字段"
+            } catch (e: Exception) {
+                errors += "${url.substringAfter("://").take(48)} → ${e.message}"
             }
         }
         throw IllegalStateException(errors.joinToString("\n"))

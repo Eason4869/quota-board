@@ -351,7 +351,7 @@ class QuotaViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     /**
-     * 更新检测：**不跟启动**，改为后台定时轮询（默认每 6 小时一次）。
+     * 更新检测：**不跟启动**，改为后台定时轮询（默认每 1 小时一次）。
      * 检测结果只更新「关于」页那一行的状态，不弹任何浮层。
      */
     private fun restartUpdateCheck() {

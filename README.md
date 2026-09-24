@@ -28,10 +28,11 @@
 
 | 查询方式 | 厂商 |
 |------|------|
-| 官方 API | DeepSeek、OpenRouter、SiliconFlow、StepFun、Novita、Kimi、智谱 GLM、MiniMax、OpenCode Go |
+| 官方 API | DeepSeek、OpenRouter、SiliconFlow、StepFun、Novita、Kimi、智谱 GLM、MiniMax、OpenCode Go、Moonshot、千问 Token Plan |
+| 订阅用量（令牌） | ChatGPT / Codex、Claude、Gemini、GitHub Copilot |
 | AK/SK 签名 | 火山方舟 Agent Plan / Coding Plan |
 | 云函数 | 任意厂商（自建函数或代理） |
-| 登录拉取 | Claude、Gemini、OpenAI、小米 MiMo |
+| 登录拉取 | 小米 MiMo，其余厂商按需选用 |
 
 ## 界面预览
 

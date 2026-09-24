@@ -218,8 +218,12 @@
     <string name="vendor_moonshot_desc">Pay-as-you-go balance</string>
     <string name="vendor_copilot">GitHub Copilot</string>
     <string name="vendor_copilot_desc">Premium requests quota</string>
+    <string name="vendor_qianwen">Qianwen Token Plan</string>
+    <string name="vendor_qianwen_desc">Token Plan windows</string>
+    <string name="hint_qianwen_key">Paste the Token Plan key from platform.qianwenai.com (the gateway is token-plan.maas.qianwenaiapi.com).</string>
     <string name="hint_moonshot_key">Paste a Moonshot (platform.moonshot.cn) API key.</string>
     <string name="hint_copilot_token">Paste a GitHub OAuth token with Copilot access (`gh auth token`).</string>
+    <string name="hint_mimo_cookie">MiMo quota needs a signed-in session. A pasted Cookie must contain api-platform_serviceToken and userId. Tap to copy this line.</string>
 
     <!-- Query errors -->
     <string name="err_need_aksk">Please fill in AccessKey ID / SecretAccessKey</string>

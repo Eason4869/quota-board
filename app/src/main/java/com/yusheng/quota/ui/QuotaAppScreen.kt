@@ -564,6 +564,10 @@ private fun HomeScreen(
                 onOpen = { onOpen(account.id) },
                 onDelete = { onDelete(account.id) },
                 modifier = Modifier
+                    // 让位动画：其余卡片平滑移动，拖动中的那张不参与（跟手才不抖）
+                    .animateItem(
+                        placementSpec = if (dragId == account.id) null else tween(220),
+                    )
                     .zIndex(if (dragId == account.id) 1f else 0f)
                     .graphicsLayer {
                         translationY = if (dragId == account.id) dragDy else 0f
@@ -573,6 +577,13 @@ private fun HomeScreen(
                         scaleX = if (active) 1.02f else 1f
                         scaleY = if (active) 1.02f else 1f
                     }
+                    .then(
+                        if (dragId == account.id) {
+                            Modifier.border(1.5.dp, MaterialTheme.colorScheme.primary, RoundedCornerShape(16.dp))
+                        } else {
+                            Modifier
+                        }
+                    )
                     .pointerInput(account.id) {
                         detectDragGesturesAfterLongPress(
                             onDragStart = {
@@ -639,6 +650,28 @@ private fun DashboardCard(state: UiState) {
     }
 }
 
+/** 卡片最前方的 2×3 点阵：提示这张卡可以长按拖动排序 */
+@Composable
+private fun DragHandle() {
+    val dot = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.45f)
+    Column(
+        modifier = Modifier.padding(end = 8.dp),
+        verticalArrangement = Arrangement.spacedBy(3.dp),
+    ) {
+        repeat(3) {
+            Row(horizontalArrangement = Arrangement.spacedBy(3.dp)) {
+                repeat(2) {
+                    Box(
+                        Modifier
+                            .size(3.dp)
+                            .background(dot, RoundedCornerShape(999.dp)),
+                    )
+                }
+            }
+        }
+    }
+}
+
 @Composable
 private fun AccountRow(
     account: Account,
@@ -663,6 +696,7 @@ private fun AccountRow(
             .padding(14.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
+        DragHandle()
         VendorBadge(short = tpl.id.take(2).uppercase(), color = tpl.color, templateId = tpl.id)
         Spacer(Modifier.size(12.dp))
         Column(Modifier.weight(1f)) {
@@ -831,6 +865,24 @@ private fun DetailScreen(
                         enabled = account.query.loginUrl.isNotBlank() || account.query.url.isNotBlank(),
                     ) { Text(stringResource(R.string.action_login_fetch)) }
                 }
+            }
+        }
+
+        // 小米：额度只能靠登录态，把必需的 Cookie 字段摆出来，点一下整段复制
+        if (account.templateId == "xiaomi") {
+            val appCtx = LocalContext.current
+            val hintText = stringResource(R.string.hint_mimo_cookie)
+            SectionCard {
+                Text(
+                    text = hintText,
+                    fontSize = 12.sp,
+                    color = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.fillMaxWidth().clickable {
+                        val cm = appCtx.getSystemService(android.content.Context.CLIPBOARD_SERVICE)
+                            as android.content.ClipboardManager
+                        cm.setPrimaryClip(android.content.ClipData.newPlainText("cookie", hintText))
+                    },
+                )
             }
         }
 

@@ -212,8 +212,12 @@
     <string name="vendor_moonshot_desc">按量余额</string>
     <string name="vendor_copilot">GitHub Copilot</string>
     <string name="vendor_copilot_desc">Premium 请求额度</string>
+    <string name="vendor_qianwen">千问 Token Plan</string>
+    <string name="vendor_qianwen_desc">Token Plan 套餐窗口</string>
+    <string name="hint_qianwen_key">填千问 AI 平台（platform.qianwenai.com）Token Plan 的 Key；网关是 token-plan.maas.qianwenaiapi.com。</string>
     <string name="hint_moonshot_key">填 Moonshot 开放平台（platform.moonshot.cn）的 API Key。</string>
     <string name="hint_copilot_token">填有 Copilot 权限的 GitHub OAuth token（`gh auth token` 即可拿到）。</string>
+    <string name="hint_mimo_cookie">小米额度需要登录态；粘贴 Cookie 时必须包含 api-platform_serviceToken 与 userId。点这一行可整段复制。</string>
 
     <string name="err_need_aksk">请填写 AccessKey ID / SecretAccessKey</string>
     <string name="err_need_url">请填写查询 URL</string>

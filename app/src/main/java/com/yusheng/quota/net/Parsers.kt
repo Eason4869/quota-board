@@ -41,6 +41,7 @@ object Parsers {
             "moonshot" -> moonshot(json)
             "copilot" -> copilot(json)
             "xiaomi" -> mimo(json)
+            "qianwen" -> qianwen(json)
             "kimi" -> kimi(json)
             "zhipu" -> zhipu(json, context)
             "minimax" -> miniMax(json)
@@ -251,6 +252,105 @@ object Parsers {
                 num(balance, "giftBalance")?.let { add(Extra("gift", fmt(it))) }
             },
         )
+    }
+
+    /**
+     * 千问 Token Plan（best-effort）。
+     *
+     * 平台侧的额度响应没有公开文档，网关又是 OpenAI 兼容层，字段命名并不统一，
+     * 这里把三类常见结构都兼容进来，有什么展示什么：
+     *   · 控制台：`data.monthUsage.items[]{name,used,limit}`
+     *   · 兼容层：`quota/limit` + `used`，或只回 `remaining`
+     *   · 明细窗口：`limits[] / windows[] / periods[]` 里的 {limit,total,remaining,used}
+     */
+    private fun qianwen(j: JSONObject): QueryResult {
+        val d = j.optJSONObject("data") ?: j
+
+        var used: Double? = null
+        var limit: Double? = null
+
+        d.optJSONObject("monthUsage")?.optJSONArray("items")?.let { items ->
+            for (i in 0 until items.length()) {
+                val item = items.optJSONObject(i) ?: continue
+                val itemUsed = num(item, "used")
+                val itemLimit = num(item, "limit")
+                if (itemUsed != null && itemLimit != null) {
+                    used = itemUsed
+                    limit = itemLimit
+                    break
+                }
+            }
+        }
+
+        used = used ?: num(d, "used", "usedQuota", "usage", "monthUsed", "totalUsed", "usedAmount")
+        limit = limit ?: num(d, "quota", "limit", "totalQuota", "monthLimit", "totalLimit", "total")
+        val remain = num(d, "remaining", "remain", "left", "availableQuota")
+        if (limit == null && remain != null && used != null) limit = remain + used
+        if (used == null && limit != null && remain != null) used = (limit - remain).coerceAtLeast(0.0)
+
+        val resetAt = listOf(
+            "resetAt", "reset_at", "resetTime", "reset_time",
+            "periodEnd", "period_end", "endTime", "end_time", "expireTime", "expiredAt",
+        ).firstNotNullOfOrNull { key -> resetTime(d.opt(key)) }
+
+        val periods = mutableListOf<Period>()
+        listOf("limits", "windows", "periods", "quotas").forEach { key ->
+            d.optJSONArray(key)?.let { arr ->
+                for (i in 0 until arr.length()) {
+                    val p = arr.optJSONObject(i) ?: continue
+                    val inner = p.optJSONObject("detail") ?: p
+                    val total = num(inner, "limit", "total", "quota")
+                    val left = num(inner, "remaining", "remain", "left")
+                    val pUsed = num(inner, "used")
+                        ?: if (total != null && left != null) (total - left).coerceAtLeast(0.0) else null
+                    if (total == null && pUsed == null) continue
+                    periods += Period(
+                        label = windowLabelOf(str(inner, "window", "period", "interval", "type", "name", "id"))
+                            ?: "window${i + 1}",
+                        used = pUsed,
+                        total = total,
+                        resetAt = str(inner, "resetAt", "reset_at", "resetTime", "reset_time", "endTime"),
+                    )
+                }
+            }
+        }
+        if (periods.isEmpty() && used != null && limit != null) {
+            periods += Period("monthly", used, limit, resetAt = resetAt)
+        }
+
+        val plan = str(d, "planName", "plan_name", "planCode", "plan", "tier", "productName")
+        val amount = num(
+            d, "balance", "totalBalance", "total_balance", "available_balance",
+            "availableBalance", "amount", "credit", "credits",
+        )
+        val first = periods.firstOrNull()
+
+        return QueryResult(
+            balance = amount?.let { Balance(it, "¥") },
+            subscription = if (plan != null || first != null) {
+                Subscription(
+                    tier = plan ?: "Qianwen Token Plan",
+                    remaining = if (limit != null && used != null) (limit - used).coerceAtLeast(0.0) else first?.remain,
+                    total = limit ?: first?.total,
+                    unit = "tokens",
+                    resetAt = resetAt ?: first?.resetAt,
+                )
+            } else null,
+            periods = periods,
+        )
+    }
+
+    /** 窗口原始名 → 规范名；认不出来时返回 null（由调用方生成占位名） */
+    private fun windowLabelOf(raw: String?): String? {
+        val v = raw?.trim()?.lowercase() ?: return null
+        if (v.isBlank()) return null
+        return when {
+            v.contains("5h") || v.contains("hour") || v.contains("session") -> "5h"
+            v.contains("week") || v.contains("7d") -> "weekly"
+            v.contains("month") || v.contains("30d") -> "monthly"
+            v.contains("day") || v.contains("24h") -> "daily"
+            else -> null
+        }
     }
 
     /**

@@ -51,7 +51,7 @@ object Templates {
             nameRes = R.string.vendor_openai,
             descRes = R.string.vendor_openai_desc,
             color = 0xFF10A37F,
-            // 默认走 API：粘贴 Codex CLI 的 access token + 账号 ID，不必in-app 打开 ChatGPT 登录页
+            // 默认走 API：粘贴 Codex CLI 的 access token + 账号 ID，不必在应用内打开 ChatGPT 登录页
             defaultMode = QueryMode.API,
             modes = listOf(QueryMode.API, QueryMode.LOGIN, QueryMode.WEBHOOK),
             defaults = QueryConfig(
@@ -248,7 +248,7 @@ object Templates {
             ),
         ),
 
-        // ── 通用（永远最后）──
+        // ── 追加厂商：新增项一律排在这里，「通用」固定最后一位 ──
         Template(
             id = "moonshot",
             nameRes = R.string.vendor_moonshot,
@@ -271,6 +271,19 @@ object Templates {
             defaults = QueryConfig(
                 mode = QueryMode.API,
                 url = "https://api.github.com/copilot_internal/user",
+            ),
+        ),
+        Template(
+            id = "qianwen",
+            nameRes = R.string.vendor_qianwen,
+            descRes = R.string.vendor_qianwen_desc,
+            color = 0xFF615CED,
+            defaultMode = QueryMode.API,
+            modes = listOf(QueryMode.API, QueryMode.WEBHOOK),
+            defaults = QueryConfig(
+                mode = QueryMode.API,
+                // Token Plan 网关（OpenAI 兼容）；额度接口由引擎按候选路径探测
+                url = "https://token-plan.maas.qianwenaiapi.com/compatible-mode/v1/usage",
             ),
         ),
         Template(

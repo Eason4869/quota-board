@@ -135,6 +135,7 @@ fun ConfigScreen(
                                 Hint(stringResource(R.string.hint_codex_token))
                             }
                             "claude" -> Hint(stringResource(R.string.hint_claude_token))
+                            "qianwen" -> Hint(stringResource(R.string.hint_qianwen_key))
                             "gemini" -> {
                                 Field(stringResource(R.string.field_project_id), cfg.projectId) {
                                     onCfgChange(cfg.copy(projectId = it))
