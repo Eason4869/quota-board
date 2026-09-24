@@ -231,6 +231,20 @@ object Parsers {
                 resetAt = resetTime(u.opt("resetTime")),
             )
         }
+        // 新账号改回 `usages` 比例映射，其中只有月度池限 `limit_month_total` 有意义
+        j.optJSONObject("usages")?.let { usages ->
+            val monthly = usages.optJSONObject("limit_month_total")
+            val ratio = num(monthly, "used_ratio", "usedRatio")
+            if (ratio != null) {
+                periods += Period(
+                    label = "monthly",
+                    used = null,
+                    total = 100.0,
+                    usedPct = (ratio * 100.0).coerceIn(0.0, 100.0),
+                    resetAt = resetTime(monthly?.opt("reset_time") ?: monthly?.opt("resets_at")),
+                )
+            }
+        }
         val first = periods.firstOrNull()
         return QueryResult(
             subscription = first?.let { Subscription("Kimi Coding", it.remain, it.total, "quota", it.resetAt) },
@@ -484,6 +498,39 @@ object Parsers {
     }
 
     private fun gemini(j: JSONObject): QueryResult {
+        // 现行接口：{buckets:[{modelId?, window?, remainingFraction(0-1), resetTime?}]}
+        j.optJSONArray("buckets")?.let { buckets ->
+            val periods = mutableListOf<Period>()
+            for (i in 0 until buckets.length()) {
+                val b = buckets.optJSONObject(i) ?: continue
+                val remainFraction = num(b, "remainingFraction")
+                val remainAmount = num(b, "remainingAmount")
+                val usedPct = remainFraction?.let { (1.0 - it) * 100.0 } ?: continue
+                val raw = str(b, "window", "modelId", "tokenType") ?: "bucket${i + 1}"
+                val label = when {
+                    raw.contains("5h", true) || raw.contains("hour", true) -> "5h"
+                    raw.contains("week", true) || raw.contains("7d", true) -> "weekly"
+                    raw.contains("month", true) -> "monthly"
+                    raw.contains("day", true) -> "daily"
+                    else -> raw
+                }
+                periods += Period(
+                    label = label,
+                    used = null,
+                    total = 100.0,
+                    usedPct = usedPct,
+                    resetAt = str(b, "resetTime", "reset_time"),
+                )
+                if (remainAmount != null) { /* 绝对量在 extras 里没地方放，忽略 */ }
+            }
+            if (periods.isNotEmpty()) {
+                val first = periods.first()
+                return QueryResult(
+                    subscription = Subscription("Gemini", first.remain, 100.0, "%", first.resetAt),
+                    periods = periods,
+                )
+            }
+        }
         val periods = mutableListOf<Period>()
         val fiveHour = j.optJSONObject("5h")
         val used5 = num(j, "five_hour_used") ?: num(fiveHour, "used")

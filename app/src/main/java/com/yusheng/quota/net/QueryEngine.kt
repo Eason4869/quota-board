@@ -66,6 +66,10 @@ class QueryEngine(private val context: Context) {
                     siliconFlowWithFallback(cfg, timeout)
                 } else if (template.id == "openai") {
                     openAiUsageWithFallback(cfg, timeout)
+                } else if (template.id == "gemini") {
+                    geminiQuotaFetch(cfg, timeout)
+                } else if (template.id == "minimax") {
+                    miniMaxUsageWithFallback(cfg, timeout)
                 } else {
                     requestJson(
                         method = cfg.method.ifBlank { "GET" },
@@ -303,6 +307,7 @@ class QueryEngine(private val context: Context) {
                 headers["User-Agent"] = "codex-cli"
                 if (cfg.accountId.isNotBlank()) headers["chatgpt-account-id"] = cfg.accountId.trim()
             }
+            "gemini" -> headers["Content-Type"] = "application/json"
         }
         if (cfg.method.equals("POST", true)) headers["Content-Type"] = "application/json"
         return headers
@@ -327,6 +332,57 @@ class QueryEngine(private val context: Context) {
                 return requestJson("GET", url, apiHeaders("openai", cfg), "", timeoutSec, QueryMode.API)
             } catch (e: Exception) {
                 errors += "${url.substringAfter("chatgpt.com")} → ${e.message}"
+            }
+        }
+        throw IllegalStateException(errors.joinToString("\n"))
+    }
+
+    /**
+     * Gemini / Antigravity 配额：`POST {host}/v1internal:retrieveUserQuotaSummary`，
+     * 带 OAuth token 与 `{"project": "<项目 ID>"}`（项目 ID 可留空先试）。
+     */
+    private suspend fun geminiQuotaFetch(cfg: QueryConfig, timeoutSec: Int): JSONObject {
+        val body = JSONObject().apply {
+            if (cfg.projectId.isNotBlank()) put("project", cfg.projectId.trim())
+        }.toString()
+        val candidates = LinkedHashSet<String>().apply {
+            add(cfg.url)
+            add("https://daily-cloudcode-pa.googleapis.com/v1internal:retrieveUserQuotaSummary")
+            add("https://cloudcode-pa.googleapis.com/v1internal:retrieveUserQuotaSummary")
+        }.filter { it.isNotBlank() }
+
+        val errors = mutableListOf<String>()
+        for (url in candidates) {
+            try {
+                return requestJson("POST", url, apiHeaders("gemini", cfg), body, timeoutSec, QueryMode.API)
+            } catch (e: Exception) {
+                errors += "${url.substringAfter("//").take(38)} → ${e.message}"
+            }
+        }
+        throw IllegalStateException(errors.joinToString("\n"))
+    }
+
+    /**
+     * MiniMax 用量：现行官方路由 `/v1/token_plan/remains`，旧路由
+     * `/v1/api/openplatform/coding_plan/remains` 仍在服务且**字段语义相反**，
+     * 两个都试，解析层按字段名分别处理（见 Parsers.miniMax）。
+     */
+    private suspend fun miniMaxUsageWithFallback(cfg: QueryConfig, timeoutSec: Int): JSONObject {
+        val base = cfg.url.ifBlank { "https://api.minimaxi.com/v1/token_plan/remains" }
+        val host = runCatching { java.net.URI(base) }.getOrNull()
+            ?.let { "${it.scheme}://${it.host}" } ?: "https://api.minimaxi.com"
+        val candidates = LinkedHashSet<String>().apply {
+            add(base)
+            add("$host/v1/token_plan/remains")
+            add("$host/v1/api/openplatform/coding_plan/remains")
+        }.filter { it.isNotBlank() }
+
+        val errors = mutableListOf<String>()
+        for (url in candidates) {
+            try {
+                return requestJson("GET", url, apiHeaders("minimax", cfg), "", timeoutSec, QueryMode.API)
+            } catch (e: Exception) {
+                errors += "/${url.substringAfter("/v1", "").take(34)} → ${e.message}"
             }
         }
         throw IllegalStateException(errors.joinToString("\n"))

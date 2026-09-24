@@ -79,11 +79,12 @@ object Templates {
             nameRes = R.string.vendor_gemini,
             descRes = R.string.vendor_gemini_desc,
             color = 0xFF4285F4,
-            defaultMode = QueryMode.LOGIN,
-            modes = listOf(QueryMode.LOGIN, QueryMode.WEBHOOK),
+            // 默认走 API：粘贴 Gemini/Antigravity CLI 的 OAuth token + 项目 ID
+            defaultMode = QueryMode.API,
+            modes = listOf(QueryMode.API, QueryMode.LOGIN, QueryMode.WEBHOOK),
             defaults = QueryConfig(
-                mode = QueryMode.LOGIN,
-                url = "https://gemini.google.com/",
+                mode = QueryMode.API,
+                url = "https://daily-cloudcode-pa.googleapis.com/v1internal:retrieveUserQuotaSummary",
                 loginUrl = "https://gemini.google.com/",
             ),
         ),
@@ -134,7 +135,8 @@ object Templates {
             modes = listOf(QueryMode.API, QueryMode.WEBHOOK),
             defaults = QueryConfig(
                 mode = QueryMode.API,
-                url = "https://api.minimaxi.com/v1/api/openplatform/coding_plan/remains",
+                // 官方现行路由；旧路由由引擎自动兜底
+                url = "https://api.minimaxi.com/v1/token_plan/remains",
             ),
         ),
         Template(

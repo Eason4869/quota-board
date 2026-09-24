@@ -195,6 +195,7 @@
     <string name="field_account_id">账号 ID</string>
     <string name="hint_claude_token">填 Claude Code 的 OAuth access token（`~/.claude/.credentials.json` 里的 `claudeAiOauth.accessToken`；macOS 在钥匙串「Claude Code-credentials」）。不需要登录页。</string>
     <string name="hint_codex_token">填 Codex CLI 的 access token（`~/.codex/auth.json` → `tokens.access_token`）与账号 ID（同文件 `tokens.account_id`）。不需要登录页。</string>
+    <string name="hint_gemini_token">填 Gemini / Antigravity CLI 的 OAuth access token；有项目 ID 就一并填上。不需要登录页。</string>
     <string name="field_wh_fallback">代理地址（可选兜底）</string>
     <string name="hint_zhipu_team">组织 ID 与项目 ID 都填才走团队版接口；个人版请留空。</string>
     <string name="hint_script_present">已配置自定义提取器：会优先使用，解析失败时自动回退内置解析。</string>

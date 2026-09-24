@@ -3,6 +3,12 @@
 本项目遵循 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/) 与
 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [1.2.21] - 2026-09-24
+
+- Gemini 默认改用配额接口：粘贴 OAuth token（+ 项目 ID），不再依赖登录页
+- MiniMax 改用官方现行路由 `/v1/token_plan/remains`，旧路由自动兜底
+- Kimi 支持新账号的 `usages` 比例映射（月度池 `limit_month_total`）
+
 ## [1.2.20] - 2026-09-24
 
 - 移除全部弹出提示（查询结果、已是最新版等），导入失败改为字段下方红字
@@ -167,6 +173,7 @@
 - 按量与订阅同屏展示，5 小时 / 周 / 月窗口
 - 桌面小组件、跟随系统主题、中英双语、JSON 导入导出
 
+[1.2.21]: https://github.com/Eason4869/quota-board/releases/tag/v1.2.21
 [1.2.20]: https://github.com/Eason4869/quota-board/releases/tag/v1.2.20
 [1.2.19]: https://github.com/Eason4869/quota-board/releases/tag/v1.2.19
 [1.2.18]: https://github.com/Eason4869/quota-board/releases/tag/v1.2.18
