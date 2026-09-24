@@ -12,8 +12,10 @@ import com.yusheng.quota.data.Template
 import com.yusheng.quota.data.Templates
 import com.yusheng.quota.net.QueryEngine
 import com.yusheng.quota.net.Parsers
+import com.yusheng.quota.update.UpdateChecker
 import com.yusheng.quota.widget.QuotaWidget
 import com.yusheng.quota.widget.QuotaWidgetWorker
+import com.yusheng.quota.BuildConfig
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableSharedFlow
@@ -26,11 +28,25 @@ import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import java.util.UUID
 
+/** 应用内更新的界面状态 */
+data class UpdateUi(
+    val checking: Boolean = false,
+    val info: UpdateChecker.ReleaseInfo? = null,
+    val downloading: Boolean = false,
+    val progress: Int = 0,
+    val error: String? = null,
+    /** 已下载完成、等待授权或安装 */
+    val pendingInstall: java.io.File? = null,
+    val needsPermission: Boolean = false,
+    val dismissed: Boolean = false,
+)
+
 data class UiState(
     val accounts: List<Account> = emptyList(),
     val settings: Settings = Settings(),
     val activeId: String? = null,
     val querying: Set<String> = emptySet(),
+    val update: UpdateUi = UpdateUi(),
 )
 
 class QuotaViewModel(app: Application) : AndroidViewModel(app) {
@@ -64,6 +80,95 @@ class QuotaViewModel(app: Application) : AndroidViewModel(app) {
             refreshAll()
         }
         restartAutoRefresh()
+        if (_state.value.settings.autoCheckUpdate) checkUpdate(manual = false)
+    }
+
+    // ── 应用内更新：检测 → 下载 → 直接调起安装器 ──────────────
+
+    fun checkUpdate(manual: Boolean) {
+        val current = _state.value.update
+        if (current.checking || current.downloading) return
+        _state.value = _state.value.copy(update = current.copy(checking = true, error = null))
+        viewModelScope.launch {
+            val info = UpdateChecker.fetchLatest()
+            val newer = info?.takeIf { UpdateChecker.isNewer(BuildConfig.VERSION_NAME, it.versionName) }
+            _state.value = _state.value.copy(
+                update = _state.value.update.copy(
+                    checking = false,
+                    info = newer,
+                    dismissed = false,
+                    error = null,
+                )
+            )
+            if (manual) {
+                when {
+                    info == null -> emit("check_failed")
+                    newer == null -> emit("up_to_date")
+                }
+            }
+        }
+    }
+
+    /** 从「安装未知应用」授权页返回后自动继续安装 */
+    fun onResumed() {
+        val u = _state.value.update
+        if (u.needsPermission && UpdateChecker.canInstall(getApplication())) {
+            _state.value = _state.value.copy(update = u.copy(needsPermission = false))
+            installPending()
+        }
+    }
+
+    /** 下载并安装：首次会引导去开启「安装未知应用」 */
+    fun downloadAndInstall() {
+        val info = _state.value.update.info ?: return
+        val app = getApplication<Application>()
+        if (!UpdateChecker.canInstall(app)) {
+            _state.value = _state.value.copy(update = _state.value.update.copy(needsPermission = true))
+            UpdateChecker.openInstallPermission(app)
+            return
+        }
+        _state.value = _state.value.copy(
+            update = _state.value.update.copy(downloading = true, progress = 0, error = null)
+        )
+        viewModelScope.launch {
+            val file = UpdateChecker.download(app, info) { pct ->
+                _state.value = _state.value.copy(update = _state.value.update.copy(progress = pct))
+            }
+            if (file == null) {
+                _state.value = _state.value.copy(
+                    update = _state.value.update.copy(downloading = false, error = "download_failed")
+                )
+                return@launch
+            }
+            _state.value = _state.value.copy(
+                update = _state.value.update.copy(downloading = false, pendingInstall = file, progress = 100)
+            )
+            installPending()
+        }
+    }
+
+    /** 从「安装未知应用」授权页回来后重试安装 */
+    fun installPending() {
+        val app = getApplication<Application>()
+        val file = _state.value.update.pendingInstall ?: return
+        if (!UpdateChecker.canInstall(app)) {
+            _state.value = _state.value.copy(update = _state.value.update.copy(needsPermission = true))
+            return
+        }
+        val opened = UpdateChecker.install(app, file)
+        if (!opened) {
+            _state.value = _state.value.copy(
+                update = _state.value.update.copy(error = "install_failed")
+            )
+        } else {
+            _state.value = _state.value.copy(update = _state.value.update.copy(dismissed = true))
+        }
+    }
+
+    fun dismissUpdate() {
+        _state.value = _state.value.copy(
+            update = _state.value.update.copy(dismissed = true, error = null, needsPermission = false)
+        )
     }
 
     fun account(id: String?): Account? = _state.value.accounts.firstOrNull { it.id == id }

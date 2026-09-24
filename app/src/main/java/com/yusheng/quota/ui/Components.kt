@@ -84,9 +84,15 @@ fun GlassBottomBar(current: Int, onSelect: (Int) -> Unit) {
     val shape = RoundedCornerShape(26.dp)
     Box(
         Modifier
-            .shadow(14.dp, shape, clip = false)
+            .shadow(
+                elevation = 10.dp,
+                shape = shape,
+                clip = false,
+                ambientColor = Color.Black.copy(alpha = 0.10f),
+                spotColor = Color.Black.copy(alpha = 0.16f),
+            )
             .clip(shape)
-            .background(Glass.surfaceStrong()),
+            .background(Glass.dockFill()),
     ) {
         // 玻璃质感：顶部高光渐变 + 高光描边（只覆盖胶囊本体，不铺满屏幕）
         Box(Modifier.matchParentSize().background(Glass.highlight()))

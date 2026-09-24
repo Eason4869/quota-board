@@ -87,14 +87,24 @@ object Parsers {
         )
     }
 
-    /** GET /v1/user/info → data{balance, chargeBalance, totalBalance, status} */
+    /**
+     * 余额：官方 API `data{balance, chargeBalance, totalBalance, status}`；
+     * 控制台（登录态）返回结构略有差异，这里把常见字段都兼容一遍。
+     */
     private fun siliconFlow(j: JSONObject): QueryResult {
         val d = j.optJSONObject("data") ?: j
-        val amount = num(d, "totalBalance") ?: num(d, "balance") ?: 0.0
+        val amount = num(d, "totalBalance")
+            ?: num(d, "balance")
+            ?: num(d, "total_balance")
+            ?: num(d, "amount")
+            ?: num(d, "remaining")
+            ?: num(d, "chargeBalance")
+            ?: 0.0
         return QueryResult(
             balance = Balance(amount, "¥"),
             extras = buildList {
                 num(d, "chargeBalance")?.let { add(Extra("chargeBalance", fmt(it))) }
+                num(d, "totalBalance")?.let { add(Extra("totalBalance", fmt(it))) }
                 str(d, "status")?.let { add(Extra("status", it)) }
             },
         )

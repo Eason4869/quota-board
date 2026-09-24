@@ -112,5 +112,25 @@ object Glass {
             )
         }
 
+    /**
+     * Dock 专用玻璃填充：比卡片更通透（浅色下也不发白成一块），
+     * 顶部略亮、底部略暗，模拟玻璃的厚度。
+     */
+    @Composable
+    fun dockFill(): Brush =
+        if (isDark()) {
+            Brush.verticalGradient(
+                0f to Color.White.copy(alpha = 0.13f),
+                0.5f to Color.White.copy(alpha = 0.08f),
+                1f to Color.White.copy(alpha = 0.05f),
+            )
+        } else {
+            Brush.verticalGradient(
+                0f to Color.White.copy(alpha = 0.62f),
+                0.5f to Color.White.copy(alpha = 0.48f),
+                1f to Color.White.copy(alpha = 0.38f),
+            )
+        }
+
     private fun Color.luminance(): Float = (0.299f * red + 0.587f * green + 0.114f * blue)
 }

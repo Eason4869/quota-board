@@ -44,6 +44,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.yusheng.quota.BuildConfig
@@ -279,6 +280,7 @@ fun SettingsScreen(
     onAbout: () -> Unit,
     exportJson: () -> String,
     message: (String) -> Unit,
+    bottomPadding: Dp = 0.dp,
 ) {
     // 设置项改动即生效，不需要手动保存；文本输入框保留本地文本，避免边输入边被格式化
     var refreshText by remember(settings.autoRefreshMinutes) {
@@ -297,7 +299,10 @@ fun SettingsScreen(
     val clearedMsg = stringResource(R.string.toast_cleared)
 
     Column(
-        Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp),
+        Modifier
+            .fillMaxSize()
+            .verticalScroll(rememberScrollState())
+            .padding(start = 16.dp, end = 16.dp, top = 16.dp, bottom = 16.dp + bottomPadding),
         verticalArrangement = Arrangement.spacedBy(10.dp),
     ) {
         SectionCard {
@@ -340,6 +345,15 @@ fun SettingsScreen(
                     Switch(
                         checked = settings.autoQueryOnStart,
                         onCheckedChange = { onSave(settings.copy(autoQueryOnStart = it)) },
+                    )
+                }
+
+                Spacer(Modifier.height(6.dp))
+                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
+                    Text(stringResource(R.string.settings_auto_update), fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurface)
+                    Switch(
+                        checked = settings.autoCheckUpdate,
+                        onCheckedChange = { onSave(settings.copy(autoCheckUpdate = it)) },
                     )
                 }
 
@@ -454,7 +468,11 @@ fun SettingsScreen(
 
 // ── 关于 ──────────────────────────────────────────────────
 @Composable
-fun AboutScreen() {
+fun AboutScreen(
+    checking: Boolean = false,
+    latestVersion: String? = null,
+    onCheckUpdate: () -> Unit = {},
+) {
     Column(
         Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp),
@@ -476,7 +494,7 @@ fun AboutScreen() {
                 InfoRow(stringResource(R.string.about_author), stringResource(R.string.about_author_value))
                 InfoRow(stringResource(R.string.about_license), "MIT")
                 RepoLinkRow(stringResource(R.string.about_repo), stringResource(R.string.about_repo_value))
-                UpdateRow()
+                UpdateRow(checking = checking, latestVersion = latestVersion, onCheck = onCheckUpdate)
             }
         }
 
@@ -491,34 +509,32 @@ fun AboutScreen() {
 }
 
 @Composable
-private fun UpdateRow() {
-    val ctx = LocalContext.current
-    var status by remember { mutableStateOf("") }
+private fun UpdateRow(
+    checking: Boolean,
+    latestVersion: String?,
+    onCheck: () -> Unit,
+) {
+    val check = stringResource(R.string.action_check_update)
     val upToDate = stringResource(R.string.update_none)
     val updateAvailable = stringResource(R.string.update_available)
-    val check = stringResource(R.string.action_check_update)
     val current = BuildConfig.VERSION_NAME
 
     Row(
-        Modifier.fillMaxWidth().clickable {
-            status = "…"
-            Thread {
-                val rel = com.yusheng.quota.update.UpdateChecker.fetchLatest()
-                val msg = when {
-                    rel == null -> "!"
-                    com.yusheng.quota.update.UpdateChecker.isNewer(current, rel.versionName) -> {
-                        com.yusheng.quota.update.UpdateChecker.openInBrowser(ctx, "https://github.com/Eason4869/quota-board/releases/tag/v${rel.versionName}")
-                        "$updateAvailable ${rel.versionName}"
-                    }
-                    else -> upToDate
-                }
-                android.os.Handler(android.os.Looper.getMainLooper()).post { status = msg }
-            }.start()
-        }.padding(vertical = 8.dp),
+        Modifier.fillMaxWidth().clickable(enabled = !checking) { onCheck() }.padding(vertical = 8.dp),
         horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically,
     ) {
         Text(check, fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
-        Text(status.ifBlank { "v$current" }, fontSize = 13.sp, color = MaterialTheme.colorScheme.primary)
+        Text(
+            text = when {
+                checking -> "…"
+                latestVersion != null -> "$updateAvailable $latestVersion"
+                else -> "$upToDate · v$current"
+            },
+            fontSize = 13.sp,
+            color = if (latestVersion != null) MaterialTheme.colorScheme.primary
+            else MaterialTheme.colorScheme.onSurfaceVariant,
+        )
     }
 }
 

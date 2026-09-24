@@ -77,8 +77,21 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh release create "${GITHUB_REF_NAME}" \
-            --title "额度台 Android ${GITHUB_REF_NAME}" \
-            --generate-notes \
-            app/build/outputs/apk/release/app-release.apk
+          # 用 CHANGELOG 里对应版本的章节作为 Release 说明（应用内更新弹窗直接读它）
+          notes="$(awk -v ver="${GITHUB_REF_NAME#v}" '
+            $0 ~ "^## \\[" ver "\\]" {flag=1; next}
+            /^## \[/ {flag=0}
+            flag {print}
+          ' CHANGELOG.md)"
+          if [ -n "$notes" ]; then
+            gh release create "${GITHUB_REF_NAME}" \
+              --title "额度台 ${GITHUB_REF_NAME}" \
+              --notes "$notes" \
+              app/build/outputs/apk/release/app-release.apk
+          else
+            gh release create "${GITHUB_REF_NAME}" \
+              --title "额度台 ${GITHUB_REF_NAME}" \
+              --generate-notes \
+              app/build/outputs/apk/release/app-release.apk
+          fi
           gh release view "${GITHUB_REF_NAME}" --json assets --jq '.assets[] | "\(.name) \(.size) bytes"'

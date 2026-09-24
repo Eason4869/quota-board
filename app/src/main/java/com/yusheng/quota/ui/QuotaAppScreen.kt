@@ -35,10 +35,12 @@ import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.Button
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
@@ -46,9 +48,11 @@ import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -60,10 +64,14 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.sp
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
 import androidx.activity.compose.BackHandler
 import com.yusheng.quota.R
 import androidx.compose.foundation.background
@@ -105,6 +113,18 @@ fun QuotaAppRoot(vm: QuotaViewModel) {
     val ctx = LocalContext.current
     val queryOk = stringResource(R.string.toast_query_ok)
     val queryFailed = stringResource(R.string.toast_query_failed)
+    val upToDateText = stringResource(R.string.update_up_to_date)
+    val checkFailedText = stringResource(R.string.update_check_failed)
+
+    // 从「安装未知应用」授权页返回后自动继续安装
+    val lifecycleOwner = LocalLifecycleOwner.current
+    DisposableEffect(lifecycleOwner) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_RESUME) vm.onResumed()
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+    }
 
     // 查询结束的统一反馈（VM 不持有文案，文案留在 UI 层，便于多语言）
     LaunchedEffect(Unit) {
@@ -113,7 +133,13 @@ fun QuotaAppRoot(vm: QuotaViewModel) {
                 is QuotaViewModel.Event.QueryFinished ->
                     event.error?.let { snackbar.showSnackbar("$queryFailed：$it") }
                 is QuotaViewModel.Event.Message ->
-                    snackbar.showSnackbar(event.text)
+                    snackbar.showSnackbar(
+                        when (event.text) {
+                            "up_to_date" -> upToDateText
+                            "check_failed" -> checkFailedText
+                            else -> event.text
+                        }
+                    )
             }
         }
     }
@@ -186,12 +212,8 @@ fun QuotaAppRoot(vm: QuotaViewModel) {
             },
         ) { padding ->
             // 沉浸式：状态栏与导航栏都不占布局，内容延伸到系统栏之下
-            Box(
-                Modifier
-                    .fillMaxSize()
-                    .padding(padding)
-                    .padding(bottom = if (showDock) DockSpace else 0.dp),
-            ) {
+            // 底部不再留整块空白：Dock 悬浮在内容之上，由各页面自己把内容底部留白
+            Box(Modifier.fillMaxSize().padding(padding)) {
                 // 页面切换动效：淡入 + 微位移，方向跟随前进 / 后退
                 AnimatedContent(
                     targetState = screen,
@@ -213,6 +235,7 @@ fun QuotaAppRoot(vm: QuotaViewModel) {
                         onOpen = { activeId = it; vm.setActive(it); screen = Screen.DETAIL },
                         onDelete = { vm.deleteAccount(it) },
                         onAdd = { screen = Screen.CATALOG },
+                        bottomPadding = if (showDock) DockSpace else 0.dp,
                     )
 
                     Screen.DETAIL -> {
@@ -241,6 +264,25 @@ fun QuotaAppRoot(vm: QuotaViewModel) {
                                     }
                                 },
                                 onDelete = { vm.deleteAccount(account.id); screen = Screen.HOME },
+                                onSuggestedFix = siliconFlowLoginFix(account)?.let { (loginUrl, fetchUrl) ->
+                                    {
+                                        val fixed = account.copy(
+                                            query = account.query.copy(
+                                                mode = QueryMode.LOGIN,
+                                                loginUrl = loginUrl,
+                                                url = fetchUrl,
+                                                method = "GET",
+                                            )
+                                        )
+                                        vm.updateAccount(fixed)
+                                        loginRequest = LoginRequest(loginUrl, fetchUrl) { cookie, json ->
+                                            if (!cookie.isNullOrBlank()) {
+                                                vm.updateAccount(fixed.copy(query = fixed.query.copy(cookie = cookie)))
+                                            }
+                                            if (json != null) vm.applyJson(account.id, json) else vm.refresh(account.id)
+                                        }
+                                    }
+                                },
                             )
                         }
                     }
@@ -253,6 +295,7 @@ fun QuotaAppRoot(vm: QuotaViewModel) {
                             draftCfg = t.defaults
                             screen = Screen.CONFIG
                         },
+                        bottomPadding = if (showDock) DockSpace else 0.dp,
                     )
 
                     Screen.CONFIG -> {
@@ -301,9 +344,14 @@ fun QuotaAppRoot(vm: QuotaViewModel) {
                         onAbout = { screen = Screen.ABOUT },
                         exportJson = { vm.exportPayload() },
                         message = { msg -> vm.emit(msg) },
+                        bottomPadding = if (showDock) DockSpace else 0.dp,
                     )
 
-                    Screen.ABOUT -> AboutScreen()
+                    Screen.ABOUT -> AboutScreen(
+                        checking = state.update.checking,
+                        latestVersion = state.update.info?.versionName,
+                        onCheckUpdate = { vm.checkUpdate(manual = true) },
+                    )
                 }
                 }
             }
@@ -355,6 +403,94 @@ fun QuotaAppRoot(vm: QuotaViewModel) {
                 }
             }
         }
+
+        // ── 应用内更新：检测到新版本就在这里下载并直接调起安装器 ──
+        val upd = state.update
+        val info = upd.info
+        if (info != null && !upd.dismissed) {
+            val downloadFailed = stringResource(R.string.update_download_failed)
+            val installFailed = stringResource(R.string.update_install_failed)
+            AlertDialog(
+                onDismissRequest = { vm.dismissUpdate() },
+                title = { Text(stringResource(R.string.update_dialog_title, info.versionName)) },
+                text = {
+                    Column {
+                        if (upd.downloading) {
+                            LinearProgressIndicator(
+                                progress = { upd.progress / 100f },
+                                modifier = Modifier.fillMaxWidth(),
+                            )
+                            Spacer(Modifier.height(8.dp))
+                            Text(
+                                stringResource(R.string.update_downloading, upd.progress),
+                                fontSize = 12.sp,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        } else {
+                            if (info.notes.isNotBlank()) {
+                                Text(
+                                    info.notes.take(500),
+                                    fontSize = 12.sp,
+                                    maxLines = 10,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                )
+                                Spacer(Modifier.height(10.dp))
+                            }
+                            if (info.apkSize > 0) {
+                                Text(
+                                    stringResource(
+                                        R.string.update_size,
+                                        "%.1f MB".format(info.apkSize / 1024.0 / 1024.0),
+                                    ),
+                                    fontSize = 11.sp,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                )
+                            }
+                            upd.error?.let { err ->
+                                Spacer(Modifier.height(8.dp))
+                                Text(
+                                    when (err) {
+                                        "download_failed" -> downloadFailed
+                                        "install_failed" -> installFailed
+                                        else -> err
+                                    },
+                                    fontSize = 12.sp,
+                                    color = Color(0xFFFF5A6E),
+                                )
+                            }
+                            if (upd.needsPermission) {
+                                Spacer(Modifier.height(8.dp))
+                                Text(
+                                    stringResource(R.string.update_need_permission),
+                                    fontSize = 12.sp,
+                                    color = MaterialTheme.colorScheme.primary,
+                                )
+                            }
+                        }
+                    }
+                },
+                confirmButton = {
+                    Button(
+                        enabled = !upd.downloading,
+                        onClick = {
+                            if (upd.pendingInstall != null) vm.installPending() else vm.downloadAndInstall()
+                        },
+                    ) {
+                        Text(
+                            stringResource(
+                                if (upd.pendingInstall != null) R.string.update_install
+                                else R.string.update_download
+                            )
+                        )
+                    }
+                },
+                dismissButton = {
+                    TextButton(onClick = { vm.dismissUpdate() }) {
+                        Text(stringResource(R.string.update_later))
+                    }
+                },
+            )
+        }
     }
 }
 
@@ -365,6 +501,7 @@ private fun HomeScreen(
     onOpen: (String) -> Unit,
     onDelete: (String) -> Unit,
     onAdd: () -> Unit,
+    bottomPadding: Dp = 0.dp,
 ) {
     if (state.accounts.isEmpty()) {
         Box(Modifier.fillMaxSize().padding(24.dp), contentAlignment = Alignment.Center) {
@@ -390,7 +527,7 @@ private fun HomeScreen(
 
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
-        contentPadding = PaddingValues(16.dp),
+        contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 16.dp, bottom = 16.dp + bottomPadding),
         verticalArrangement = Arrangement.spacedBy(10.dp),
     ) {
         item { DashboardCard(state) }
@@ -513,6 +650,8 @@ private fun DetailScreen(
     onConfig: () -> Unit,
     onLoginCapture: (String) -> Unit,
     onDelete: () -> Unit,
+    /** 出错时给出的一键修复动作（例如硅基流动国内站接口下线 → 改用登录取数） */
+    onSuggestedFix: (() -> Unit)? = null,
 ) {
     val tpl = Templates.byId(account.templateId)
     val result = account.result
@@ -640,6 +779,12 @@ private fun DetailScreen(
                     Text(stringResource(R.string.label_error), fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = Color(0xFFFF5A6E))
                     Spacer(Modifier.height(6.dp))
                     Text(err, fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    onSuggestedFix?.let { fix ->
+                        Spacer(Modifier.height(10.dp))
+                        Button(onClick = fix, modifier = Modifier.fillMaxWidth()) {
+                            Text(stringResource(R.string.action_switch_to_login))
+                        }
+                    }
                 }
             }
         }
@@ -688,10 +833,10 @@ fun modeLabel(mode: QueryMode): String = when (mode) {
 
 // ── 厂商目录 ──────────────────────────────────────────────
 @Composable
-private fun CatalogScreen(onPick: (Template) -> Unit) {
+private fun CatalogScreen(onPick: (Template) -> Unit, bottomPadding: Dp = 0.dp) {
     LazyColumn(
         Modifier.fillMaxSize(),
-        contentPadding = PaddingValues(16.dp),
+        contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 16.dp, bottom = 16.dp + bottomPadding),
         verticalArrangement = Arrangement.spacedBy(10.dp),
     ) {
         item {
@@ -724,4 +869,21 @@ private fun CatalogScreen(onPick: (Template) -> Unit) {
             }
         }
     }
+}
+
+/**
+ * 硅基流动国内站的余额 API（`api.siliconflow.cn/v1/user/info`）已经下线：
+ * 无效 Key 会被网关先拦成 401，而有效 Key 会返回 **410 deprecated**。
+ * 官方控制台（account.siliconflow.cn）的余额接口仍然可用，但需要登录态，
+ * 所以命中这类错误时给出一键「改用登录取数」。
+ */
+private fun siliconFlowLoginFix(account: Account): Pair<String, String>? {
+    if (account.templateId != "siliconflow") return null
+    val err = account.lastError ?: return null
+    val hit = err.contains("410") ||
+        err.contains("deprecated", ignoreCase = true) ||
+        err.contains("not authenticated", ignoreCase = true) ||
+        err.contains("请登录")
+    if (!hit) return null
+    return "https://account.siliconflow.cn/zh/" to "https://account.siliconflow.cn/api/user/balance"
 }

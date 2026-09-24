@@ -3,6 +3,26 @@
 本项目遵循 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/) 与
 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [1.2.9] - 2026-09-24
+
+### 新增
+
+- **应用内自动更新**：启动时自动检查新版本，发现更新后**在应用内下载 APK 并直接调起系统安装器**，全程不跳浏览器
+  - 弹窗展示更新说明与安装包大小，带下载进度
+  - 首次安装会引导授予「安装未知应用」权限，返回后自动继续安装
+  - 设置里可开关「启动时自动检查更新」，「关于」页可手动检查
+- **硅基流动国内站**：余额 API 下线（有效 Key 返回 410）时，账户详情页会给出一键「改用登录取数」，
+  自动切到控制台接口并打开应用内登录
+
+### 变更
+
+- **Dock**：玻璃更通透（浅色下不再像一整块白条），阴影减淡；页面内容改为从 Dock 下方穿过，
+  不再在底部留出一整块空白
+
+### 修复
+
+- 硅基流动控制台返回结构差异导致余额解析不到的问题
+
 ## [1.2.8] - 2026-09-24
 
 ### 变更
@@ -172,6 +192,7 @@
 - 火山 Agent / Coding Plan 需使用账号级 AK/SK（非推理 API Key）
 - 智谱团队版需额外填写组织 ID / 项目 ID
 
+[1.2.9]: https://github.com/Eason4869/quota-board/releases/tag/v1.2.9
 [1.2.8]: https://github.com/Eason4869/quota-board/releases/tag/v1.2.8
 [1.2.7]: https://github.com/Eason4869/quota-board/releases/tag/v1.2.7
 [1.2.6]: https://github.com/Eason4869/quota-board/releases/tag/v1.2.6

@@ -109,4 +109,6 @@ data class Settings(
     val darkMode: String = "system",
     /** 全局默认超时；账户级 timeoutSec > 0 时优先用账户级 */
     val timeoutSec: Int = 10,
+    /** 启动时自动检查新版本 */
+    val autoCheckUpdate: Boolean = true,
 )
