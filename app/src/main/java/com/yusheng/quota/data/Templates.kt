@@ -17,6 +17,31 @@ data class Template(
     val defaults: QueryConfig,
 )
 
+/**
+ * 火山引擎账号登录页（不是控制台里的深链）。
+ *
+ * 登录页那份 bundle 是压到 ES5 级别的（实测 `?.` 0 处、`??=` 0 处），老内核也能跑；
+ * 而控制台（方舟）的入口 bundle 有 154 处 `?.`、12 处 `??=`，要 **Chrome 85+**，
+ * 内核低了整段脚本连解析都过不去 —— 页面停在空壳上，什么都连不上。
+ * 登录只是为了拿 Cookie，不需要那个页面本身画得出来。
+ */
+const val VOLC_LOGIN_PAGE = "https://console.volcengine.com/auth/login/"
+
+/**
+ * 登录页归一化：把「控制台深链」这类伪登录页换成真正的登录页。
+ *
+ * 老账户里存的可能还是深链（模板改之前添加的），所以这一步放在打开登录页时做，
+ * 而不是只改模板 —— 否则已经建好的账户仍旧白屏。
+ */
+fun normalizeLoginUrl(raw: String): String {
+    val url = raw.trim()
+    if (url.isEmpty()) return url
+    val lower = url.lowercase()
+    if (!lower.contains("console.volcengine.com")) return url
+    if (lower.contains("/auth/login")) return url
+    return VOLC_LOGIN_PAGE
+}
+
 object Templates {
 
     val ALL: List<Template> = listOf(
@@ -148,7 +173,7 @@ object Templates {
             defaults = QueryConfig(
                 mode = QueryMode.AKSK,
                 url = "https://open.volcengineapi.com/",
-                loginUrl = "https://console.volcengine.com/ark/region:cn-beijing/subscription/agent-plan",
+                loginUrl = VOLC_LOGIN_PAGE,
                 region = "cn-beijing",
             ),
         ),
@@ -162,7 +187,7 @@ object Templates {
             defaults = QueryConfig(
                 mode = QueryMode.AKSK,
                 url = "https://open.volcengineapi.com/",
-                loginUrl = "https://console.volcengine.com/ark/region:cn-beijing/subscription/coding-plan",
+                loginUrl = VOLC_LOGIN_PAGE,
                 region = "cn-beijing",
             ),
         ),

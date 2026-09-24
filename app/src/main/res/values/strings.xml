@@ -154,6 +154,8 @@
     <string name="login_ssl_error">Certificate check failed: something on this network may be intercepting HTTPS (a proxy or security software). Try another network — mobile data, for example — or sign in with a browser and paste the Cookie into the account settings.</string>
     <string name="login_no_response">The page showed no response within %1$d seconds: it never started loading and reported no error. This site may be unreachable on your current network. Try another network, or sign in with a browser and paste the Cookie instead.</string>
     <string name="login_setup_failed">Could not create the in-app browser: %1$s</string>
+    <string name="login_engine_old">Your system WebView engine is Chrome %1$d, below the Chrome %2$d these modern console pages need. Their main script fails to run at all on an older engine, which shows up as a blank page (third-party widgets still render). Update “Android System WebView” or Chrome from the store and retry, or sign in with a browser and paste the Cookie into the account settings.</string>
+    <string name="login_script_failed">The page’s main script failed to run on this engine (%1$s) — most likely an outdated engine. Updating “Android System WebView” usually fixes it.</string>
     <string name="login_diag_copy">Copy diagnostics</string>
     <string name="login_diag_copied">Diagnostics copied</string>
     <string name="action_paste">Paste</string>

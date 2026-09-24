@@ -151,6 +151,8 @@
     <string name="login_ssl_error">证书校验失败：当前网络里可能有拦截 HTTPS 的代理或安全软件。请换一个网络（例如用流量）重试，或改用浏览器登录后把 Cookie 粘贴到账户配置里。</string>
     <string name="login_no_response">%1$d 秒内页面没有任何响应（既没开始加载，也没有报错）。这个站点在当前网络下可能不可达，建议换网络，或改用浏览器登录后粘贴 Cookie。</string>
     <string name="login_setup_failed">无法创建内置浏览器：%1$s</string>
+    <string name="login_engine_old">系统 WebView 内核是 Chrome %1$d，低于这类现代控制台页面需要的 Chrome %2$d。这些页面的主脚本会因为语法不兼容而整段不执行，表现就是白屏（第三方挂件反而还画得出来）。请在应用商店更新「Android System WebView」或 Chrome 后重试；也可以改用浏览器登录后把 Cookie 粘贴到账户配置里。</string>
+    <string name="login_script_failed">页面主脚本在当前内核上执行失败（%1$s）：多半是内核版本过低，更新「Android System WebView」通常就好了。</string>
     <string name="login_diag_copy">复制诊断信息</string>
     <string name="login_diag_copied">诊断信息已复制</string>
     <string name="action_paste">粘贴</string>

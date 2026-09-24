@@ -80,6 +80,7 @@ import androidx.webkit.WebSettingsCompat
 import androidx.webkit.WebViewFeature
 import com.yusheng.quota.BuildConfig
 import com.yusheng.quota.R
+import com.yusheng.quota.data.normalizeLoginUrl
 import kotlinx.coroutines.delay
 import org.json.JSONObject
 
@@ -94,13 +95,57 @@ private const val TAG = "QuotaLogin"
  */
 private const val LOAD_WATCHDOG_MS = 10_000L
 
-/** 手机 UA：去掉系统 WebView 的 `wv` 标记，站点才会给出可登录的移动页 */
-private const val MOBILE_UA =
+/**
+ * 现代控制台页面所需的内核下限（Chrome 主版本号）。
+ *
+ * 这个数字不是拍的：火山方舟控制台的入口 bundle（`ark-new-main/static/js/main.*.js`）里
+ * 有 4 处 `??=`、3 处 `||=`（Module Federation 运行时那段）。逻辑赋值运算符要 **Chrome 85+**，
+ * 低了就是**语法错误** —— 整个 bundle 一个字符都执行不了，页面停在空壳上。
+ * 而挂在一边的第三方挂件（在线咨询之类）多是 ES5 写的，照样能画出来 ——
+ * 「白屏但侧边有个咨询按钮」正是这个组合。
+ */
+private const val MODERN_ENGINE_FLOOR = 85
+
+/** 拿不到真实 UA 时的兜底手机 UA（正常路径用不到，见 mobileUaFrom） */
+private const val FALLBACK_MOBILE_UA =
     "Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Mobile Safari/537.36"
 
-/** 桌面 UA：控制台只有桌面版布局时使用 */
-private const val DESKTOP_UA =
-    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36"
+/**
+ * 由内核**真实** UA 派生手机 UA：只去掉 `wv` 与 `Version/x.y` 标记，**保留真实版本号**。
+ *
+ * 别再写死版本号了：站点会按 UA 声称的能力决定下发什么产物，而声称得比内核新的时候，
+ * 站点就会下发内核根本解析不了的语法。`wv` 标记要去掉（不少站点见到它就拒绝渲染），
+ * 版本号必须是真的。
+ */
+private fun mobileUaFrom(raw: String?): String {
+    val base = raw?.takeIf { it.isNotBlank() } ?: return FALLBACK_MOBILE_UA
+    return base
+        .replace("; wv)", ")")
+        .replace(Regex("\\sVersion/\\d+(\\.\\d+)*"), "")
+        .replace(Regex("\\swv\\b"), "")
+}
+
+/** 桌面 UA：布局是假的没关系，**版本号必须跟内核一致**，理由同上 */
+private fun desktopUaFrom(engineMajor: Int?): String =
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) " +
+        "Chrome/${engineMajor ?: 120}.0.0.0 Safari/537.36"
+
+/** 从 UA（或 WebView 内核包版本号）里取 Chrome 主版本 */
+private fun engineMajorOf(ua: String?): Int? =
+    ua?.let { Regex("Chrome/(\\d+)").find(it)?.groupValues?.get(1)?.toIntOrNull() }
+
+/**
+ * 这条控制台报错像不像「内核太老，脚本根本跑不起来」。
+ *
+ * 语法错误是解析期就挂的（`??=` 之于 Chrome 85 之前），运行时缺 API 则是调用时抛的
+ * （`Object.hasOwn` 之类），两者对用户都是同一件事：主脚本没跑，页面是空壳。
+ */
+private fun isLikelyEngineFailure(msg: String): Boolean {
+    val m = msg.lowercase()
+    return m.contains("syntaxerror") || m.contains("unexpected token") ||
+        m.contains("is not a function") || m.contains("is not defined") ||
+        m.contains("undefined is not")
+}
 
 /**
  * 应用内登录 + 取数。
@@ -122,7 +167,10 @@ fun LoginCaptureScreen(
     onCancel: () -> Unit,
     onCaptured: (cookie: String?, json: String?) -> Unit,
 ) {
-    var currentUrl by remember { mutableStateOf(startUrl) }
+    // 有些模板/老账户把「控制台深链」当登录页存了，那东西在老内核上根本跑不起来（见
+    // normalizeLoginUrl 的说明）。这里统一换成真正的登录页 —— 登录只是要拿 Cookie。
+    val initialUrl = remember(startUrl) { normalizeLoginUrl(startUrl) }
+    var currentUrl by remember { mutableStateOf(initialUrl) }
     var cookie by remember { mutableStateOf("") }
     var progress by remember { mutableIntStateOf(0) }
     var busy by remember { mutableStateOf(false) }
@@ -144,9 +192,33 @@ fun LoginCaptureScreen(
     var responded by remember { mutableStateOf(false) }
     var noResponse by remember { mutableStateOf(false) }
     var sslFailed by remember { mutableStateOf(false) }
+    /** 页面画出来了但内容几乎是空的 */
+    var looksBlank by remember { mutableStateOf(false) }
     /** new WebView(ctx) 失败的原因（系统 WebView 被禁用等） */
     var setupError by remember { mutableStateOf("") }
     var diagCopied by remember { mutableStateOf(false) }
+
+    val ctx = LocalContext.current
+    val clipboard = LocalClipboardManager.current
+
+    // 内核真实 UA —— 我们发给站点的 UA 由它派生，内核版本也从它判断
+    val defaultUa = remember {
+        runCatching { WebSettings.getDefaultUserAgent(ctx) }.getOrNull()
+    }
+    val engineMajor = remember(defaultUa, providerInfo) {
+        engineMajorOf(defaultUa) ?: engineMajorOf(providerInfo)
+    }
+    val mobileUa = remember(defaultUa) { mobileUaFrom(defaultUa) }
+    val desktopUa = remember(engineMajor) { desktopUaFrom(engineMajor) }
+    val engineTooOld = engineMajor != null && engineMajor < MODERN_ENGINE_FLOOR
+
+    LaunchedEffect(initialUrl, startUrl, providerInfo, engineMajor) {
+        Log.i(
+            TAG,
+            "engineChrome=$engineMajor floor=$MODERN_ENGINE_FLOOR provider=$providerInfo " +
+                "start=${startUrl} effective=${initialUrl}",
+        )
+    }
 
     val loggedInText = stringResource(R.string.login_state_logged_in)
     val notLoggedInText = stringResource(R.string.login_state_unknown)
@@ -162,10 +234,8 @@ fun LoginCaptureScreen(
     val noResponseText = stringResource(R.string.login_no_response, (LOAD_WATCHDOG_MS / 1000).toInt())
     val diagCopyText = stringResource(R.string.login_diag_copy)
     val diagCopiedText = stringResource(R.string.login_diag_copied)
+    val engineOldText = engineMajor?.let { stringResource(R.string.login_engine_old, it, MODERN_ENGINE_FLOOR) }
     val progressAlpha by animateFloatAsState(if (progress in 1..99) 1f else 0f, label = "loginProgress")
-
-    val ctx = LocalContext.current
-    val clipboard = LocalClipboardManager.current
 
     // 站点不可达时 WebViewClient 一个回调都不给，页面就是纯白且无提示；
     // 这里到点检查「这一轮有没有任何回调」，没有就明确告诉用户是网络不通。
@@ -232,6 +302,7 @@ fun LoginCaptureScreen(
         responded = false
         noResponse = false
         sslFailed = false
+        looksBlank = false
         status = ""
         if (reload) wv.reload() else wv.loadUrl(currentUrl.ifBlank { startUrl })
         loadGen += 1
@@ -243,8 +314,12 @@ fun LoginCaptureScreen(
         append("app=").append(BuildConfig.VERSION_NAME)
         append("\nandroid=").append(android.os.Build.VERSION.SDK_INT)
         append("\nwebview=").append(providerInfo ?: "missing")
+        append("\nengine_chrome=").append(engineMajor?.toString() ?: "?")
+        append("\nengine_floor=").append(MODERN_ENGINE_FLOOR)
+        append("\nua_sent=").append(if (desktopMode) desktopUa else mobileUa)
         append("\nurl=").append(currentUrl)
         append("\nstatus=").append(status.ifBlank { "-" })
+        append("\nblank=").append(if (looksBlank) "yes" else "no")
         append("\nssl_error=").append(if (sslFailed) "yes" else "no")
         append("\nno_response=").append(if (noResponse) "yes" else "no")
         append("\nsetup_error=").append(setupError.ifBlank { "-" })
@@ -343,7 +418,7 @@ fun LoginCaptureScreen(
                             settings.setSupportMultipleWindows(true)
                             settings.allowFileAccess = false
                             settings.allowContentAccess = false
-                            settings.userAgentString = if (desktopMode) DESKTOP_UA else MOBILE_UA
+                            settings.userAgentString = if (desktopMode) desktopUa else mobileUa
                             // 关闭「算法暗色」：它会给不支持暗色的站点整页刷黑，看起来就是黑屏
                             if (WebViewFeature.isFeatureSupported(WebViewFeature.ALGORITHMIC_DARKENING)) {
                                 WebSettingsCompat.setAlgorithmicDarkeningAllowed(settings, false)
@@ -398,14 +473,18 @@ fun LoginCaptureScreen(
                                         CookieManager.getInstance().getCookie(url)?.let { cookie = it }
                                     }
                                     progress = 100
-                                    // 空白页检测：内容太少说明布局/脚本没跑起来，给出手动兜底提示。
-                                    // 注意别在这里无条件 status = ""：上一步的错误提示会被立刻
-                                    // 抹掉，用户根本来不及看到，只有页面真画出内容才该清空
+                                    // 空白页检测：内容太少说明布局/脚本没跑起来。
+                                    // 用独立标志而不是写进 status —— 写进 status 会把下面
+                                    // 「内核过旧 / 脚本执行失败」这类更具体的判断盖掉，
+                                    // 而它们才是白屏的原因。
                                     view?.evaluateJavascript(
                                         "(function(){return String((document.body&&document.body.innerText||'').trim().length);})()"
                                     ) { len ->
                                         val n = len?.trim('"')?.toIntOrNull() ?: 0
-                                        status = if (n < 40) blankHint else ""
+                                        looksBlank = n < 40
+                                        if (looksBlank) {
+                                            Log.w(TAG, "page looks blank (innerText=$n) url=$currentUrl")
+                                        }
                                     }
                                 }
 
@@ -561,16 +640,21 @@ fun LoginCaptureScreen(
         } else {
             Column(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 6.dp)) {
                 val isGoogle = currentUrl.contains("accounts.google.com")
-                // 提示的取值顺序 = 排查顺序：先说清自己这边的问题（内核/构造失败），
-                // 再说页面报的错（HTTP/网络），最后才是「没响应」和常规登录提示。
+                // 顺序 = 排查顺序：先「我们这边就装不起来」（内核缺失/构造失败），
+                // 再页面明确报出来的错（证书/HTTP/网络），然后是能给白屏定性的判断
+                // （脚本挂了 / 内核过旧），最后才是「没响应」和常规登录提示。
+                val engineBroken = consoleError.isNotBlank() && isLikelyEngineFailure(consoleError)
                 val needsAttention = providerInfo == null || setupError.isNotBlank() ||
-                    sslFailed || noResponse || isGoogle
+                    sslFailed || noResponse || isGoogle || engineTooOld || engineBroken
                 Text(
                     text = when {
                         providerInfo == null -> webViewMissing
                         setupError.isNotBlank() -> stringResource(R.string.login_setup_failed, setupError)
-                        status.isNotBlank() -> status
                         sslFailed -> sslErrorText
+                        status.isNotBlank() -> status
+                        engineBroken -> stringResource(R.string.login_script_failed, consoleError)
+                        engineTooOld -> engineOldText ?: blankHint
+                        looksBlank -> blankHint
                         noResponse -> noResponseText
                         isGoogle -> googleBlockedText
                         cookie.isNotBlank() -> loggedInText
@@ -587,6 +671,8 @@ fun LoginCaptureScreen(
                     Text(
                         buildString {
                             append("WebView: $providerInfo")
+                            // 内核主版本直接摆出来：白屏的第一嫌疑就是它，用户一眼就能对上
+                            if (engineMajor != null) append(" · Chrome $engineMajor")
                             if (consoleError.isNotBlank()) append(" · JS: $consoleError")
                             append(" · ")
                             append(if (diagCopied) diagCopiedText else diagCopyText)
@@ -622,7 +708,7 @@ fun LoginCaptureScreen(
                         onClick = {
                             desktopMode = !desktopMode
                             webView.value?.let { wv ->
-                                wv.settings.userAgentString = if (desktopMode) DESKTOP_UA else MOBILE_UA
+                                wv.settings.userAgentString = if (desktopMode) desktopUa else mobileUa
                                 startNewLoad(wv, reload = true)
                             }
                         },
