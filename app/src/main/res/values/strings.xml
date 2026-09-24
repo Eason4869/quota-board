@@ -182,7 +182,7 @@
     <string name="update_download_failed">Download failed on every source (direct + mirrors).</string>
     <string name="update_open_browser">Download in browser instead</string>
     <string name="update_install_failed">Could not open the installer. You can install the downloaded APK manually.</string>
-    <string name="settings_auto_update">Periodic update check (every 6 h)</string>
+    <string name="settings_auto_update">Check for updates hourly</string>
     <string name="update_none">Already up to date</string>
     <string name="action_check_update">Check for updates</string>
     <string name="toast_cookie_captured">Session captured</string>

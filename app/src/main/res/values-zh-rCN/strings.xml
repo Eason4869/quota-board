@@ -178,7 +178,7 @@
     <string name="update_download_failed">直连与各镜像都下载失败了。</string>
     <string name="update_open_browser">改用浏览器下载</string>
     <string name="update_install_failed">无法调起安装器，可到文件管理器手动安装已下载的 APK。</string>
-    <string name="settings_auto_update">自动定时检查更新（每 6 小时）</string>
+    <string name="settings_auto_update">自动检测更新（每小时）</string>
     <string name="update_none">已是最新版本</string>
     <string name="action_check_update">检查更新</string>
     <string name="toast_cookie_captured">已记录登录态</string>

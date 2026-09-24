@@ -72,6 +72,8 @@ class QuotaViewModel(app: Application) : AndroidViewModel(app) {
 
     private var autoRefreshJob: Job? = null
     private var updateCheckJob: Job? = null
+    /** 拖动排序的写盘防抖 */
+    private var orderSaveJob: Job? = null
 
     init {
         if (_state.value.settings.autoQueryOnStart && _state.value.accounts.isNotEmpty()) {
@@ -222,11 +224,20 @@ class QuotaViewModel(app: Application) : AndroidViewModel(app) {
     fun clearAccounts() = persist { emptyList() }
 
     /** 首页拖动排序：把 from 位置的账户移到 to 位置并落盘 */
-    fun moveAccount(from: Int, to: Int) = persist { list ->
-        if (from in list.indices && to in list.indices && from != to) {
-            list.toMutableList().apply { add(to, removeAt(from)) }
-        } else {
-            list
+    /**
+     * 首页拖动排序。拖动过程中每帧都会调用这里，所以只改内存状态，
+     * 写盘用 400ms 防抖延后一次 —— 否则每帧 JSON 全量序列化会明显卡顿。
+     */
+    fun moveAccount(from: Int, to: Int) {
+        val list = _state.value.accounts.toMutableList()
+        if (from !in list.indices || to !in list.indices || from == to) return
+        list.add(to, list.removeAt(from))
+        _state.value = _state.value.copy(accounts = list)
+        orderSaveJob?.cancel()
+        orderSaveJob = viewModelScope.launch {
+            delay(400)
+            // mutateAccounts 是线程安全的写盘入口：把内存里的新顺序直接写回
+            store.mutateAccounts { _state.value.accounts }
         }
     }
 
@@ -355,8 +366,8 @@ class QuotaViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     private companion object {
-        /** 定时检测间隔：6 小时 */
-        const val UPDATE_CHECK_INTERVAL_MS = 6 * 60 * 60 * 1000L
+        /** 定时检测间隔：1 小时 */
+        const val UPDATE_CHECK_INTERVAL_MS = 60 * 60 * 1000L
     }
 
     /**

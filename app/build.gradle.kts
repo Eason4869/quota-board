@@ -1,4 +1,4 @@
-import java.util.Properties
+﻿import java.util.Properties
 
 plugins {
     id("com.android.application")
@@ -50,8 +50,8 @@ android {
         applicationId = "com.yusheng.quota"
         minSdk = 26
         targetSdk = 35
-        versionCode = 22
-        versionName = "1.2.22"
+        versionCode = 23
+        versionName = "1.2.23"
         resourceConfigurations += listOf("en", "zh-rCN")
     }
 
@@ -133,3 +133,4 @@ dependencies {
 
     debugImplementation("androidx.compose.ui:ui-tooling")
 }
+
