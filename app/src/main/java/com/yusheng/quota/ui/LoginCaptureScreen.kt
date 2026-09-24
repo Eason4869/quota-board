@@ -47,6 +47,7 @@ import androidx.compose.material.icons.filled.OpenInBrowser
 import androidx.compose.material.icons.filled.PhoneAndroid
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Save
+import androidx.compose.material.icons.filled.SystemUpdate
 import androidx.compose.material.icons.filled.ZoomOutMap
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
@@ -81,8 +82,14 @@ import androidx.webkit.WebViewFeature
 import com.yusheng.quota.BuildConfig
 import com.yusheng.quota.R
 import com.yusheng.quota.data.normalizeLoginUrl
+import com.yusheng.quota.net.MimoEndpoints
+import com.yusheng.quota.net.PageFetch
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.withContext
 import org.json.JSONObject
+import java.net.HttpURLConnection
+import java.net.URL
 
 /** logcat 统一用这个 tag 过滤：`adb logcat -s QuotaLogin` */
 private const val TAG = "QuotaLogin"
@@ -300,6 +307,15 @@ fun LoginCaptureScreen(
     /** 探针回来的序号 —— 复制要等的是「这一次」探针，不是上一次那份快照 */
     var probeSeq by remember { mutableIntStateOf(0) }
     var copyWantSeq by remember { mutableIntStateOf(-1) }
+    /** 厂商接口自己给出的登录地址（未登录时回 401 + loginUrl） */
+    var apiLoginUrl by remember { mutableStateOf<String?>(null) }
+    var loginFromApi by remember { mutableStateOf(false) }
+
+    // 小米：一次取「用量 / 详情 / 余额」三个接口（HttpOnly 会话只有在页面里才带得上）
+    val mimoUrls = remember(fetchUrl) { MimoEndpoints.endpointsFor(fetchUrl) }
+    val fetchUrls = remember(mimoUrls, fetchUrl) {
+        mimoUrls ?: listOf(fetchUrl).filter { it.isNotBlank() }
+    }
 
     val ctx = LocalContext.current
     val clipboard = LocalClipboardManager.current
@@ -321,6 +337,24 @@ fun LoginCaptureScreen(
             "engineChrome=$engineMajor floor=$MODERN_ENGINE_FLOOR provider=$providerInfo " +
                 "start=${startUrl} effective=${initialUrl}",
         )
+    }
+
+    /**
+     * 登录页不靠猜：**厂商接口自己会说**。
+     *
+     * 未登录访问额度接口时，控制台普遍回 `{"code":401,"loginUrl":"…"}`（小米/火山都是），
+     * 这个地址就是权威登录页，且通常是**普通表单页**（ES5 级别），老内核也跑得动 ——
+     * 而控制台深链要先跑通 SPA 才谈得上登录。拿到后直接把 WebView 切过去。
+     */
+    LaunchedEffect(fetchUrls) {
+        val primary = fetchUrls.firstOrNull() ?: return@LaunchedEffect
+        val resolved = resolveLoginUrlFromApi(primary)
+        if (!resolved.isNullOrBlank() && resolved != currentUrl) {
+            apiLoginUrl = resolved
+            loginFromApi = true
+            Log.i(TAG, "login url resolved from api: ${shortUrl(resolved)}")
+            webView.value?.loadUrl(resolved)
+        }
     }
 
     val loggedInText = stringResource(R.string.login_state_logged_in)
@@ -820,7 +854,7 @@ fun LoginCaptureScreen(
                                 status = fetchFailedText
                                 return@Button
                             }
-                            capture(wv, fetchUrl, cookie, currentUrl) { c, body ->
+                            capture(wv, fetchUrls, mimoUrls != null, cookie, currentUrl) { c, body ->
                                 onCaptured(c, body)
                             }
                         },
@@ -870,6 +904,8 @@ fun LoginCaptureScreen(
                             // 内核主版本直接摆出来：白屏的第一嫌疑就是它，用户一眼就能对上
                             if (engineMajor != null) append(" · Chrome $engineMajor")
                             if (consoleError.isNotBlank()) append(" · JS: $consoleError")
+                            // 登录页是从接口回包里取的（而不是猜控制台深链）
+                            if (loginFromApi) append(" · login=api")
                             append(" · ")
                             append(if (diagCopied) diagCopiedText else diagCopyText)
                         },
@@ -880,6 +916,22 @@ fun LoginCaptureScreen(
                         else MaterialTheme.colorScheme.onSurfaceVariant,
                         modifier = Modifier.fillMaxWidth().clickable { copyDiagnostics() },
                     )
+                }
+                // 内核缺失 / 过旧：白屏的头号原因，直接给一个能按的出口
+                if (providerInfo == null || engineTooOld) {
+                    Spacer(Modifier.height(6.dp))
+                    Button(
+                        onClick = { openWebViewStore(ctx) },
+                        modifier = Modifier.fillMaxWidth(),
+                    ) {
+                        Icon(
+                            Icons.Default.SystemUpdate,
+                            contentDescription = null,
+                            modifier = Modifier.size(16.dp),
+                        )
+                        Spacer(Modifier.width(6.dp))
+                        Text(stringResource(R.string.action_update_webview), fontSize = 12.sp)
+                    }
                 }
                 Spacer(Modifier.height(6.dp))
                 Row(
@@ -930,7 +982,7 @@ fun LoginCaptureScreen(
                         }
                         busy = true
                         status = ""
-                        capture(wv, fetchUrl, cookie, currentUrl) { c, body ->
+                        capture(wv, fetchUrls, mimoUrls != null, cookie, currentUrl) { c, body ->
                             busy = false
                             if (body == null) status = fetchFailedText else onCaptured(c, body)
                         }
@@ -999,21 +1051,30 @@ private fun CompactAction(
  */
 private fun capture(
     webView: WebView,
-    fetchUrl: String,
+    urls: List<String>,
+    mergeMimo: Boolean,
     currentCookie: String,
     currentUrl: String,
     onResult: (cookie: String?, json: String?) -> Unit,
 ) {
-    webView.evaluateJavascript(jsFetch(fetchUrl)) { raw ->
-        val payload = decodeJsString(raw)
-        if (payload == null) {
+    if (urls.isEmpty()) {
+        onResult(currentCookie.takeIf { it.isNotBlank() }, null)
+        return
+    }
+    webView.evaluateJavascript(PageFetch.js(urls)) { raw ->
+        val results = PageFetch.decode(raw)
+        if (results == null) {
             onResult(currentCookie.takeIf { it.isNotBlank() }, null)
             return@evaluateJavascript
         }
-        val body = payload.optString("body")
-        val code = payload.optInt("status")
-        val ok = runCatching { JSONObject(body) }.isSuccess
-        if (code in 200..299 && ok) {
+        // 小米三个接口合并成一份；其他厂商就是单接口的原始回包
+        val body = if (mergeMimo) {
+            MimoEndpoints.merge(results)?.toString()
+        } else {
+            results.firstOrNull()?.takeIf { it.isOk }?.body
+        }
+        val ok = body != null && runCatching { JSONObject(body) }.isSuccess
+        if (ok) {
             val fresh = CookieManager.getInstance().getCookie(webView.url ?: currentUrl)
                 ?: currentCookie
             onResult(fresh.takeIf { it.isNotBlank() }, body)
@@ -1023,23 +1084,43 @@ private fun capture(
     }
 }
 
-/** 在页面上下文里请求额度接口：同源请求，自动携带登录态 */
-private fun jsFetch(url: String): String {
-    val urlLiteral = JSONObject.quote(url)
-    return """
-        (function () {
-          return fetch($urlLiteral, {
-            credentials: "include",
-            headers: { "Accept": "application/json, text/plain, */*" }
-          }).then(function (r) {
-            return r.text().then(function (t) {
-              return JSON.stringify({ status: r.status, body: t });
-            });
-          }).catch(function (e) {
-            return JSON.stringify({ status: 0, body: String((e && e.message) || e) });
-          });
-        })()
-    """.trimIndent()
+/**
+ * 未登录时厂商会回 401 + `loginUrl`，它就是权威登录页。
+ * 这里用普通的 HTTP 请求去问一次（不带任何 Cookie，副作用只有一次 GET）。
+ */
+private suspend fun resolveLoginUrlFromApi(apiUrl: String): String? = withContext(Dispatchers.IO) {
+    runCatching {
+        val conn = (URL(apiUrl).openConnection() as HttpURLConnection).apply {
+            connectTimeout = 8_000
+            readTimeout = 8_000
+            // 未登录可能是 401 也可能是 302，自己判断，别让框架吞掉回包
+            instanceFollowRedirects = false
+            setRequestProperty("Accept", "application/json")
+            setRequestProperty("User-Agent", "quota-board-android")
+        }
+        val code = conn.responseCode
+        val stream = if (code in 200..299) conn.inputStream else conn.errorStream
+        val text = stream?.bufferedReader()?.use { it.readText() }.orEmpty()
+        conn.disconnect()
+        PageFetch.loginUrlIn(text)
+    }.getOrNull()
+}
+
+/**
+ * 跳到应用商店的「Android System WebView」页面更新内核。
+ * 内核太旧是这类控制台白屏的头号原因（主脚本语法不兼容，整段不执行）。
+ */
+private fun openWebViewStore(ctx: android.content.Context) {
+    val market = Intent(
+        Intent.ACTION_VIEW,
+        Uri.parse("market://details?id=com.google.android.webview"),
+    ).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+    val web = Intent(
+        Intent.ACTION_VIEW,
+        Uri.parse("https://play.google.com/store/apps/details?id=com.google.android.webview"),
+    ).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+    runCatching { ctx.startActivity(market) }
+        .onFailure { runCatching { ctx.startActivity(web) } }
 }
 
 /** evaluateJavascript 的返回值是 JSON 字面量，解一层拿到对象 */

@@ -157,6 +157,10 @@
     <string name="login_script_failed">页面主脚本在当前内核上执行失败（%1$s）：多半是内核版本过低，更新「Android System WebView」通常就好了。</string>
     <string name="login_diag_copy">复制诊断信息</string>
     <string name="login_diag_copied">诊断信息已复制</string>
+    <string name="action_update_webview">更新内核</string>
+    <string name="login_resolved_api">已改用厂商接口返回的登录地址。</string>
+    <string name="err_mimo_need_login">小米额度接口需要登录态：请在该账户详情页点「去登录并抓取」。若改用粘贴 Cookie，必须包含 %1$s。</string>
+    <string name="err_mimo_fetch_failed">小米接口取数失败（%1$s）。也可以先在浏览器登录，再把 Cookie 粘贴到账户配置里。</string>
     <string name="action_paste">粘贴</string>
 
     <string name="toast_query_ok">查询成功</string>

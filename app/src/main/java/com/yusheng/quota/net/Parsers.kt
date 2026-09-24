@@ -38,6 +38,7 @@ object Parsers {
             "siliconflow" -> siliconFlow(json)
             "stepfun" -> stepFun(json)
             "novita" -> novita(json)
+            "xiaomi" -> mimo(json)
             "kimi" -> kimi(json)
             "zhipu" -> zhipu(json, context)
             "minimax" -> miniMax(json)
@@ -133,6 +134,73 @@ object Parsers {
     }
 
     // ── 订阅额度类 ────────────────────────────────────────
+
+    /**
+     * 小米 MiMo Token Plan。
+     *
+     * 入参是 [MimoEndpoints.merge] 合并后的结构：
+     *   usage   → `data.monthUsage.items[]` 里 `name == "month_total_token"` 的 {used, limit}
+     *   detail  → `data.planName` / `planCode` / `expired`（重置时刻也在这里）
+     *   balance → `data.balance` / `cashBalance` / `giftBalance`
+     */
+    private fun mimo(j: JSONObject): QueryResult {
+        val root = j.optJSONObject("mimo") ?: j
+        val usage = root.optJSONObject("usage")?.optJSONObject("data")
+        val detail = root.optJSONObject("detail")?.optJSONObject("data")
+        val balance = root.optJSONObject("balance")?.optJSONObject("data")
+
+        var used: Double? = null
+        var limit: Double? = null
+        usage?.optJSONObject("monthUsage")?.optJSONArray("items")?.let { items ->
+            for (i in 0 until items.length()) {
+                val item = items.optJSONObject(i) ?: continue
+                if (item.optString("name") == "month_total_token") {
+                    used = num(item, "used")
+                    limit = num(item, "limit")
+                    break
+                }
+            }
+        }
+        // 兼容只回 monthUsage 顶层字段或换名字的情况
+        if (used == null) used = num(usage, "monthUsed", "used")
+        if (limit == null) limit = num(usage, "monthLimit", "limit")
+
+        val resetAt = listOf(
+            "periodEnd", "period_end", "nextResetTime", "resetTime", "reset_time",
+            "endTime", "end_time", "expireTime",
+        ).firstNotNullOfOrNull { key -> resetTime(detail?.opt(key)) }
+
+        val planName = str(detail, "planName", "plan_name", "planCode")
+        val expired = detail?.opt("expired")?.let { if (it == JSONObject.NULL) null else it.toString() }
+        val total = num(balance, "balance") ?: num(balance, "totalBalance")
+
+        val periods = if (used != null && limit != null) {
+            listOf(Period("monthly", used, limit, resetAt = resetAt))
+        } else {
+            emptyList()
+        }
+
+        return QueryResult(
+            balance = total?.let { Balance(it, "¥") },
+            subscription = if (planName != null || limit != null) {
+                Subscription(
+                    tier = planName ?: "MiMo Token Plan",
+                    remaining = if (limit != null && used != null) (limit - used).coerceAtLeast(0.0) else null,
+                    total = limit,
+                    unit = "tokens",
+                    resetAt = resetAt,
+                )
+            } else {
+                null
+            },
+            periods = periods,
+            extras = buildList {
+                expired?.let { add(Extra("expired", it)) }
+                num(balance, "cashBalance")?.let { add(Extra("cash", fmt(it))) }
+                num(balance, "giftBalance")?.let { add(Extra("gift", fmt(it))) }
+            },
+        )
+    }
 
     /**
      * GET https://api.kimi.com/coding/v1/usages

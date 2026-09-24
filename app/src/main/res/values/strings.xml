@@ -160,6 +160,10 @@
     <string name="login_script_failed">The page’s main script failed to run on this engine (%1$s) — most likely an outdated engine. Updating “Android System WebView” usually fixes it.</string>
     <string name="login_diag_copy">Copy diagnostics</string>
     <string name="login_diag_copied">Diagnostics copied</string>
+    <string name="action_update_webview">Update WebView</string>
+    <string name="login_resolved_api">Opened the login page returned by the vendor API.</string>
+    <string name="err_mimo_need_login">MiMo quota needs a signed-in session. Tap “Sign in &amp; capture” on this account. A pasted Cookie must include %1$s.</string>
+    <string name="err_mimo_fetch_failed">MiMo request failed (%1$s). You can also sign in with a browser and paste the Cookie into the account settings.</string>
     <string name="action_paste">Paste</string>
 
     <!-- Feedback -->

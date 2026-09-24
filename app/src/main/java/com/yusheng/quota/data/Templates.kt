@@ -144,7 +144,9 @@ object Templates {
             modes = listOf(QueryMode.LOGIN, QueryMode.WEBHOOK),
             defaults = QueryConfig(
                 mode = QueryMode.LOGIN,
-                url = "https://platform.xiaomimimo.com/console/plan-manage",
+                // 直接填额度接口：登录页地址由接口自己返回的 loginUrl 决定（见 LoginCaptureScreen），
+                // 比猜控制台深链可靠 —— 深链要先跑通 SPA 才谈得上登录，老内核上就是白屏。
+                url = "https://platform.xiaomimimo.com/api/v1/tokenPlan/usage",
                 loginUrl = "https://platform.xiaomimimo.com/console/plan-manage",
             ),
         ),

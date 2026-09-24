@@ -27,6 +27,7 @@ import java.net.URLEncoder
 class QueryEngine(private val context: Context) {
 
     private val scriptExtractor: ScriptExtractor by lazy { ScriptExtractor(context) }
+    private val webSession: WebSessionFetcher by lazy { WebSessionFetcher(context) }
 
     suspend fun query(
         template: Template,
@@ -46,14 +47,20 @@ class QueryEngine(private val context: Context) {
                 mode = QueryMode.WEBHOOK,
                 cfg = cfg,
             )
-            QueryMode.LOGIN -> requestJson(
-                method = cfg.method.ifBlank { "GET" },
-                url = cfg.url,
-                headers = loginHeaders(cfg),
-                body = jsonBodyIfPost(cfg.method),
-                timeoutSec = timeout,
-                mode = QueryMode.LOGIN,
-            )
+            // 小米 MiMo 的会话是 HttpOnly Cookie，普通 HTTP 客户端带不上，
+            // 必须回到「页面上下文」里取（登录过一次后 CookieJar 里就有会话了）
+            QueryMode.LOGIN -> if (MimoEndpoints.isMimo(cfg.url)) {
+                mimoSessionFetch(cfg, timeout)
+            } else {
+                requestJson(
+                    method = cfg.method.ifBlank { "GET" },
+                    url = cfg.url,
+                    headers = loginHeaders(cfg),
+                    body = jsonBodyIfPost(cfg.method),
+                    timeoutSec = timeout,
+                    mode = QueryMode.LOGIN,
+                )
+            }
             QueryMode.API -> {
                 if (template.id == "siliconflow") {
                     siliconFlowWithFallback(cfg, timeout)
@@ -132,6 +139,31 @@ class QueryEngine(private val context: Context) {
             "apiKey" to cfg.apiKey.ifBlank { cfg.secretAccessKey }.ifBlank { cfg.cookie },
         )
         return runCatching { scriptExtractor.extract(code, json.toString(), vars) }.getOrNull()
+    }
+
+    /**
+     * 小米 MiMo：在隐藏 WebView 的页面上下文里取「用量 / 详情 / 余额」三个接口。
+     *
+     * 三个接口统一信封 `{code,data}`；未登录时回 `{"code":401,"loginUrl":...}`，
+     * 这时要明确告诉用户去「登录取数」，而不是丢一个看不懂的 JSON 出去。
+     */
+    private suspend fun mimoSessionFetch(cfg: QueryConfig, timeoutSec: Int): JSONObject {
+        val urls = MimoEndpoints.endpointsFor(cfg.url) ?: MimoEndpoints.ALL
+        val results = webSession.fetch(
+            originProbe = MimoEndpoints.originProbeFor(cfg.url),
+            urls = urls,
+            timeoutMs = (timeoutSec.coerceIn(5, 60)) * 1000L,
+        )
+        val usage = results?.firstOrNull { it.url.contains("tokenPlan/usage") }
+        if (usage != null && MimoEndpoints.isNotLoggedIn(usage.body)) {
+            throw IllegalStateException(
+                context.getString(R.string.err_mimo_need_login, MimoEndpoints.REQUIRED_COOKIES)
+            )
+        }
+        val merged = results?.let { MimoEndpoints.merge(it) }
+        return merged ?: throw IllegalStateException(
+            context.getString(R.string.err_mimo_fetch_failed, MimoEndpoints.REQUIRED_COOKIES)
+        )
     }
 
     // ── 火山 AK/SK 签名查询 ────────────────────────────────

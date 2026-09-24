@@ -3,6 +3,26 @@
 本项目遵循 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/) 与
 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [1.2.17] - 2026-09-24
+
+### 新增
+
+- **登录页不再靠猜**：未登录时厂商接口会回 `401 + loginUrl`（小米、火山都是这个约定），
+  现在直接用这个地址当登录页 —— 它是普通表单页，老内核也跑得动；而控制台深链要先跑通 SPA
+  才谈得上登录，老内核上就是白屏。等不到这个字段时才回落到模板里写的登录页
+- **小米 MiMo 额度打通**：一次取 `tokenPlan/usage`、`tokenPlan/detail`、`balance` 三个接口，
+  展示月度用量（used / limit）、套餐名与是否过期、账号余额；未登录时直接提示去「登录取数」
+- **登录态可后台复用**：小米这类只有 HttpOnly 会话的接口，取数改在「隐藏 WebView」的
+  页面上下文里做（CookieJar 是 App 级共享且持久的），所以内置登录页登录过一次之后，
+  普通「查询」不必再打开登录页
+- 诊断区新增「更新内核」按钮：内核缺失或低于控制台要求时，一键跳应用商店更新 WebView
+- 粘贴 Cookie 失败时，报错写明必需字段（小米需要 `api-platform_serviceToken` 与 `userId`）
+
+### 变更
+
+- 小米模板默认地址改为额度接口 `…/api/v1/tokenPlan/usage`；
+  已建好的老账户不用重建 —— 只要域名是小米，三个接口会自动补齐
+
 ## [1.2.16] - 2026-09-24
 
 ### 修复
@@ -318,6 +338,11 @@
 - 火山 Agent / Coding Plan 需使用账号级 AK/SK（非推理 API Key）
 - 智谱团队版需额外填写组织 ID / 项目 ID
 
+[1.2.17]: https://github.com/Eason4869/quota-board/releases/tag/v1.2.17
+[1.2.16]: https://github.com/Eason4869/quota-board/releases/tag/v1.2.16
+[1.2.15]: https://github.com/Eason4869/quota-board/releases/tag/v1.2.15
+[1.2.14]: https://github.com/Eason4869/quota-board/releases/tag/v1.2.14
+[1.2.13]: https://github.com/Eason4869/quota-board/releases/tag/v1.2.13
 [1.2.12]: https://github.com/Eason4869/quota-board/releases/tag/v1.2.12
 [1.2.11]: https://github.com/Eason4869/quota-board/releases/tag/v1.2.11
 [1.2.10]: https://github.com/Eason4869/quota-board/releases/tag/v1.2.10
