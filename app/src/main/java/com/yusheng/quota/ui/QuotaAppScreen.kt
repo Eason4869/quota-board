@@ -26,6 +26,9 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.ui.zIndex
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.LazyListLayoutInfo
+import androidx.compose.foundation.lazy.LazyListState
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
@@ -60,7 +63,9 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -92,6 +97,7 @@ import com.yusheng.quota.data.QueryMode
 import com.yusheng.quota.data.Template
 import com.yusheng.quota.data.Templates
 import kotlin.math.roundToInt
+import kotlin.math.abs
 
 private enum class Screen { HOME, DETAIL, CATALOG, CONFIG, SETTINGS, BACKUP, ABOUT }
 
@@ -524,11 +530,34 @@ private fun HomeScreen(
     onMove: (Int, Int) -> Unit = { _, _ -> },
     bottomPadding: Dp = 0.dp,
 ) {
-    // 长按卡片拖动排序：按行高换算目标位置，边拖边落位
+    // 长按卡片拖动排序。
+    //
+    // 位移量始终按「指针位置 − 卡片当前 slot 顶端」重算，不做 delta 累加：
+    // 拖动中会即时换位，卡片 slot 随之改变，累加值一旦与实际行距有出入就会漂移、闪动。
+    // 手势闭包里的账户列表用 rememberUpdatedState 取最新值，否则一直读到拖动开始那一刻的旧顺序。
+    val liveAccounts = rememberUpdatedState(state.accounts)
+    val liveMove = rememberUpdatedState(onMove)
+    val listState = rememberLazyListState()
+    val spacingPx = with(LocalDensity.current) { 10.dp.toPx() }
     var dragId by remember { mutableStateOf<String?>(null) }
     var dragDy by remember { mutableFloatStateOf(0f) }
-    val rowPx = with(LocalDensity.current) { 86.dp.toPx() }
+    var pointerY by remember { mutableFloatStateOf(0f) }
+    // 手指按在卡片内的位置：跟手要按这个点对齐，用顶端对齐会「跳一下」
+    var grabDy by remember { mutableFloatStateOf(0f) }
+    var dragItemPx by remember { mutableFloatStateOf(0f) }
     val haptic = LocalHapticFeedback.current
+
+    // 拖动中每帧对齐一次：布局更新后 slot 顶端才是新值，在这里把位移补回去。
+    LaunchedEffect(dragId) {
+        val id = dragId ?: return@LaunchedEffect
+        while (true) {
+            withFrameNanos { }
+            val top = itemOffsetOf(listState, id) ?: continue
+            // 夹在视口内：手指滑到 Dock 区域时卡片不会被拖出屏幕
+            val bottom = listState.layoutInfo.viewportSize.height - dragItemPx
+            dragDy = (pointerY - grabDy - top).coerceIn(-top, (bottom - top).coerceAtLeast(-top))
+        }
+    }
     if (state.accounts.isEmpty()) {
         Box(Modifier.fillMaxSize().padding(24.dp), contentAlignment = Alignment.Center) {
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
@@ -552,6 +581,7 @@ private fun HomeScreen(
     }
 
     LazyColumn(
+        state = listState,
         modifier = Modifier.fillMaxSize(),
         contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 16.dp, bottom = 16.dp + bottomPadding),
         verticalArrangement = Arrangement.spacedBy(10.dp),
@@ -586,22 +616,31 @@ private fun HomeScreen(
                     )
                     .pointerInput(account.id) {
                         detectDragGesturesAfterLongPress(
-                            onDragStart = {
+                            onDragStart = { offset ->
                                 dragId = account.id
-                                dragDy = 0f
+                                // offset 是相对卡片的坐标，加上卡片在视口里的位置才是指针的绝对 y
+                                pointerY = (itemOffsetOf(listState, account.id) ?: 0f) + offset.y
+                                dragDy = offset.y
+                                grabDy = offset.y
+                                dragItemPx = itemSizeOf(listState, account.id)
                                 haptic.performHapticFeedback(HapticFeedbackType.LongPress)
                             },
                             onDrag = { change, delta ->
                                 change.consume()
-                                dragDy += delta.y
-                                val from = state.accounts.indexOfFirst { it.id == account.id }
-                                val steps = (dragDy / rowPx).roundToInt()
-                                if (from >= 0 && steps != 0) {
-                                    val to = (from + steps).coerceIn(0, state.accounts.lastIndex)
-                                    if (to != from) {
-                                        onMove(from, to)
-                                        dragDy -= (to - from) * rowPx
-                                    }
+                                pointerY += delta.y
+                                val list = liveAccounts.value
+                                val from = list.indexOfFirst { it.id == account.id }
+                                if (from < 0) return@detectDragGesturesAfterLongPress
+                                // 用卡片中心（不是手指位置）判断落点，手指按在卡片边缘时更准
+                                val centerY = if (dragItemPx > 0f) pointerY - grabDy + dragItemPx / 2f else pointerY
+                                val to = accountIndexAt(listState.layoutInfo, centerY, list)
+                                if (to != null && to != from) {
+                                    // 先按实际步进补偿，再换位：重排发生在布局阶段，
+                                    // 补偿晚一帧就会看到卡片跳一下
+                                    val step = stepPxBetween(listState.layoutInfo, list, from, to)
+                                        ?: (dragItemPx.takeIf { it > 0f } ?: 0f) + spacingPx
+                                    liveMove.value(from, to)
+                                    dragDy -= (to - from) * step
                                 }
                             },
                             onDragEnd = { dragId = null; dragDy = 0f },
@@ -611,6 +650,55 @@ private fun HomeScreen(
             )
         }
     }
+}
+
+/** 卡片在列表视口里的顶端位置（同一坐标系：含 contentPadding） */
+private fun itemOffsetOf(listState: LazyListState, key: String): Float? =
+    listState.layoutInfo.visibleItemsInfo.firstOrNull { it.key == key }?.offset?.toFloat()
+
+/** 卡片高度；拿不到时回 0，调用方会退回按固定行距估算 */
+private fun itemSizeOf(listState: LazyListState, key: String): Float =
+    listState.layoutInfo.visibleItemsInfo.firstOrNull { it.key == key }?.size?.toFloat() ?: 0f
+
+/** 指针压在哪个账户上：取中心最近的一张，落在卡片间隙也能归到最近的卡片 */
+private fun accountIndexAt(
+    info: LazyListLayoutInfo,
+    pointerY: Float,
+    accounts: List<Account>,
+): Int? {
+    val indexById = accounts.withIndex().associate { (i, a) -> a.id to i }
+    var best: Int? = null
+    var bestDistance = Float.MAX_VALUE
+    info.visibleItemsInfo.forEach { item ->
+        val index = (item.key as? String)?.let { indexById[it] } ?: return@forEach
+        val distance = abs(item.offset + item.size / 2f - pointerY)
+        if (distance < bestDistance) {
+            bestDistance = distance
+            best = index
+        }
+    }
+    return best
+}
+
+/**
+ * from / to 两张卡片的实际步进（含间距）。
+ * 用它们在视口里的顶端距离摊到索引差上，卡片高度不一致时比写死行高准。
+ */
+private fun stepPxBetween(
+    info: LazyListLayoutInfo,
+    accounts: List<Account>,
+    from: Int,
+    to: Int,
+): Float? {
+    if (from == to) return null
+    val indexById = accounts.withIndex().associate { (i, a) -> a.id to i }
+    val offsetByIndex = info.visibleItemsInfo.mapNotNull { item ->
+        val index = (item.key as? String)?.let { indexById[it] } ?: return@mapNotNull null
+        index to item.offset.toFloat()
+    }.toMap()
+    val start = offsetByIndex[from] ?: return null
+    val end = offsetByIndex[to] ?: return null
+    return (end - start) / (to - from)
 }
 
 /** 仪表盘：账户数 / 成功数 / 待排查数 / 最近同步时间 */

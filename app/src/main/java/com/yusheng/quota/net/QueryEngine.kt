@@ -442,21 +442,31 @@ class QueryEngine(private val context: Context) {
 
         val errors = mutableListOf<String>()
         for (url in candidates) {
-            try {
-                val json = requestJson(
-                    method = "GET",
-                    url = url,
-                    headers = apiHeaders("qianwen", cfg),
-                    body = "",
-                    timeoutSec = timeoutSec,
-                    mode = QueryMode.API,
-                )
-                val parsed = Parsers.parse("qianwen", json, cfg.mapBalance, cfg.mapPlan, context)
-                val usable = parsed.balance != null || parsed.subscription != null || parsed.periods.isNotEmpty()
-                if (usable) return json
-                errors += "${url.substringAfter("://").take(48)} → 响应里没有可识别的额度字段"
-            } catch (e: Exception) {
-                errors += "${url.substringAfter("://").take(48)} → ${e.message}"
+            val name = url.substringAfter("://").take(52)
+            // 先 GET；若网关回的是「方法 / 参数不对」（400、405），再补一次 POST。
+            // 该网关上不存在的路径一律回 401，所以能走到 400 说明这条路径是被路由的。
+            val methods = listOf("GET", "POST")
+            for ((i, method) in methods.withIndex()) {
+                try {
+                    val json = requestJson(
+                        method = method,
+                        url = url,
+                        headers = apiHeaders("qianwen", cfg),
+                        body = jsonBodyIfPost(method),
+                        timeoutSec = timeoutSec,
+                        mode = QueryMode.API,
+                    )
+                    val parsed = Parsers.parse("qianwen", json, cfg.mapBalance, cfg.mapPlan, context)
+                    val usable =
+                        parsed.balance != null || parsed.subscription != null || parsed.periods.isNotEmpty()
+                    if (usable) return json
+                    errors += "$name → 响应里没有可识别的额度字段"
+                } catch (e: Exception) {
+                    val message = e.message.orEmpty()
+                    errors += "$name → $message"
+                    val methodIssue = message.contains("400") || message.contains("405")
+                    if (!methodIssue || i == methods.lastIndex) break
+                }
             }
         }
         throw IllegalStateException(errors.joinToString("\n"))
