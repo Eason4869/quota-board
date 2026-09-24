@@ -280,10 +280,25 @@ private fun SecretField(
         }
         TextButton(
             onClick = {
-                clipboard.getText()?.text?.trim()?.takeIf { it.isNotBlank() }?.let(onChange)
+                clipboard.getText()?.text?.let { onChange(normalizeSecret(it)) }
             },
         ) { Text(pasteLabel, fontSize = 12.sp) }
     }
+}
+
+/**
+ * 粘贴容错：从 DevTools 复制过来常常带 `Cookie:` / `Authorization:` 前缀或换行，
+ * 这里统一去掉，只留真正的值。
+ */
+private fun normalizeSecret(raw: String): String {
+    var v = raw.trim().replace("\r", "").replace("\n", "")
+    for (prefix in listOf("cookie:", "authorization:", "set-cookie:")) {
+        if (v.startsWith(prefix, ignoreCase = true)) {
+            v = v.substring(prefix.length).trim()
+            break
+        }
+    }
+    return v.trim()
 }
 
 /** 模式名走字符串资源，跟随系统语言 */

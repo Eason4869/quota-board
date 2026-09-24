@@ -150,7 +150,7 @@
     <string name="login_fit_width">适应宽度</string>
     <string name="login_fullscreen">全屏</string>
     <string name="login_exit_fullscreen">退出全屏</string>
-    <string name="login_blank_hint">页面内容为空：可试试「适应宽度」或「桌面版」，也可以用浏览器打开。</string>
+    <string name="login_blank_hint">页面内容为空：可试「适应宽度」或「桌面版」；若仍不行，请用浏览器登录后把 Cookie 粘贴到账户配置里。</string>
     <string name="login_webview_missing">系统 WebView 缺失或被禁用：请更新/启用「Android System WebView」，或改用浏览器登录后粘贴 Cookie。</string>
     <string name="action_paste">粘贴</string>
 

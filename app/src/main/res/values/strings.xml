@@ -153,7 +153,7 @@
     <string name="login_fit_width">Fit width</string>
     <string name="login_fullscreen">Full screen</string>
     <string name="login_exit_fullscreen">Exit full screen</string>
-    <string name="login_blank_hint">Page looks empty. Try “Fit width” or “Desktop page”, or open it in a browser.</string>
+    <string name="login_blank_hint">Page looks empty. Try “Fit width” / “Desktop page”, or sign in with a browser and paste the Cookie in the account settings.</string>
     <string name="login_webview_missing">System WebView is missing or disabled. Please enable/update “Android System WebView”, or sign in with a browser and paste the Cookie instead.</string>
     <string name="action_paste">Paste</string>
 
