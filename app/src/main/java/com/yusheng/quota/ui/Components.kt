@@ -19,9 +19,18 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.clickable
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Home
+import androidx.compose.material.icons.filled.Settings
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Home
+import androidx.compose.material.icons.filled.Settings
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
@@ -30,6 +39,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.yusheng.quota.R
 import com.yusheng.quota.data.Period
+import com.yusheng.quota.ui.theme.Glass
 import com.yusheng.quota.ui.theme.PeriodColors
 import kotlin.math.roundToInt
 
@@ -50,6 +60,53 @@ fun logoResFor(templateId: String): Int = when (templateId) {
     "openai" -> R.drawable.logo_openai
     "openrouter" -> R.drawable.logo_openrouter
     else -> R.drawable.logo_generic
+}
+
+/** 底部玻璃导航：主页 / 添加 / 设置 */
+@Composable
+fun GlassBottomBar(current: Int, onSelect: (Int) -> Unit) {
+    val items = listOf(
+        Triple(Icons.Default.Home, stringResource(R.string.nav_home), 0),
+        Triple(Icons.Default.Add, stringResource(R.string.nav_add), 1),
+        Triple(Icons.Default.Settings, stringResource(R.string.nav_settings), 2),
+    )
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 18.dp, vertical = 12.dp)
+            .clip(RoundedCornerShape(28.dp))
+            .background(Glass.surface())
+            .border(1.dp, Glass.stroke(), RoundedCornerShape(28.dp))
+            .padding(vertical = 8.dp),
+        horizontalArrangement = Arrangement.SpaceEvenly,
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        items.forEach { (icon, label, idx) ->
+            val selected = current == idx
+            Column(
+                modifier = Modifier
+                    .clip(RoundedCornerShape(18.dp))
+                    .background(if (selected) Color.White.copy(alpha = 0.18f) else Color.Transparent)
+                    .clickable { onSelect(idx) }
+                    .padding(horizontal = 18.dp, vertical = 6.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+            ) {
+                Icon(
+                    icon,
+                    contentDescription = label,
+                    tint = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.size(22.dp),
+                )
+                Spacer(Modifier.height(2.dp))
+                Text(
+                    label,
+                    fontSize = 10.sp,
+                    color = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+                    fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal,
+                )
+            }
+        }
+    }
 }
 
 /** 厂商徽章：有官网 Logo 时显示真实图标，否则回落字母简称 */

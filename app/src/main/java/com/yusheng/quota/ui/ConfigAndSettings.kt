@@ -3,6 +3,10 @@ package com.yusheng.quota.ui
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.ui.text.style.TextDecoration
+import android.content.Intent
+import android.net.Uri
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -471,7 +475,8 @@ fun AboutScreen() {
             Column {
                 InfoRow(stringResource(R.string.about_author), stringResource(R.string.about_author_value))
                 InfoRow(stringResource(R.string.about_license), "MIT")
-                InfoRow(stringResource(R.string.about_repo), stringResource(R.string.about_repo_value))
+                RepoLinkRow(stringResource(R.string.about_repo), stringResource(R.string.about_repo_value))
+                UpdateRow()
             }
         }
 
@@ -496,6 +501,38 @@ fun AboutScreen() {
 }
 
 @Composable
+private fun UpdateRow() {
+    val ctx = LocalContext.current
+    var status by remember { mutableStateOf("") }
+    val upToDate = stringResource(R.string.update_none)
+    val updateAvailable = stringResource(R.string.update_available)
+    val check = stringResource(R.string.action_check_update)
+    val current = BuildConfig.VERSION_NAME
+
+    Row(
+        Modifier.fillMaxWidth().clickable {
+            status = "…"
+            Thread {
+                val rel = com.yusheng.quota.update.UpdateChecker.fetchLatest()
+                val msg = when {
+                    rel == null -> "!"
+                    com.yusheng.quota.update.UpdateChecker.isNewer(current, rel.versionName) -> {
+                        com.yusheng.quota.update.UpdateChecker.openInBrowser(ctx, "https://github.com/Eason4869/quota-board/releases/tag/v${rel.versionName}")
+                        "$updateAvailable ${rel.versionName}"
+                    }
+                    else -> upToDate
+                }
+                android.os.Handler(android.os.Looper.getMainLooper()).post { status = msg }
+            }.start()
+        }.padding(vertical = 8.dp),
+        horizontalArrangement = Arrangement.SpaceBetween,
+    ) {
+        Text(check, fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Text(status.ifBlank { "v$current" }, fontSize = 13.sp, color = MaterialTheme.colorScheme.primary)
+    }
+}
+
+@Composable
 private fun InfoRow(k: String, v: String) {
     Row(
         Modifier.fillMaxWidth().padding(vertical = 8.dp),
@@ -503,5 +540,30 @@ private fun InfoRow(k: String, v: String) {
     ) {
         Text(k, fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
         Text(v, fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurface)
+    }
+}
+
+@Composable
+private fun RepoLinkRow(k: String, v: String) {
+    val ctx = LocalContext.current
+    val url = "https://github.com/Eason4869/quota-board"
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .clickable {
+                runCatching {
+                    ctx.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)))
+                }
+            }
+            .padding(vertical = 8.dp),
+        horizontalArrangement = Arrangement.SpaceBetween,
+    ) {
+        Text(k, fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Text(
+            v,
+            fontSize = 13.sp,
+            color = MaterialTheme.colorScheme.primary,
+            textDecoration = TextDecoration.Underline,
+        )
     }
 }

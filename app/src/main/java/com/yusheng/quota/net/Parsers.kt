@@ -470,7 +470,7 @@ object Parsers {
             if (!o.has(k) || o.isNull(k)) continue
             when (val v = o.get(k)) {
                 is Number -> return v.toDouble()
-                is String -> v.toDoubleOrNull()?.let { return it }
+                is String -> v.trim().toDoubleOrNull()?.let { return it }
             }
         }
         return null

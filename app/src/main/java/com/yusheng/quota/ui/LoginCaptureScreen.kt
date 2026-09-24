@@ -1,6 +1,8 @@
 package com.yusheng.quota.ui
 
 import android.annotation.SuppressLint
+import android.content.Intent
+import android.net.Uri
 import android.webkit.CookieManager
 import android.webkit.WebChromeClient
 import android.webkit.WebView
@@ -18,6 +20,7 @@ import androidx.compose.foundation.layout.safeDrawingPadding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.filled.Share
 import androidx.compose.material3.Button
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -33,6 +36,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -71,6 +75,7 @@ fun LoginCaptureScreen(
     val loggedInText = stringResource(R.string.login_state_logged_in)
     val notLoggedInText = stringResource(R.string.login_state_unknown)
     val fetchFailedText = stringResource(R.string.login_fetch_failed)
+    val ctx = LocalContext.current
 
     // 返回键先走网页历史，退无可退再关闭登录页
     BackHandler {
@@ -102,6 +107,14 @@ fun LoginCaptureScreen(
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
+            IconButton(onClick = {
+                val url = webView.value?.url ?: currentUrl
+                runCatching {
+                    ctx.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)))
+                }
+            }) {
+                Icon(Icons.Default.Share, contentDescription = stringResource(R.string.action_open_browser))
+            }
             IconButton(onClick = { webView.value?.reload() }) {
                 Icon(Icons.Default.Refresh, contentDescription = stringResource(R.string.action_refresh))
             }
@@ -122,6 +135,18 @@ fun LoginCaptureScreen(
                         settings.domStorageEnabled = true
                         settings.loadWithOverviewMode = true
                         settings.useWideViewPort = true
+                        // 默认手机界面，避免桌面版页面在窄屏加载不全
+                        settings.userAgentString = settings.userAgentString
+                            ?.replace("Mobile Safari", "Mobile Safari")
+                            .let { ua ->
+                                val base = ua ?: "Mozilla/5.0 (Linux; Android 14; Mobile) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36"
+                                if (base.contains("Mobile", ignoreCase = true)) base
+                                else "$base Mobile"
+                            }
+                        settings.setSupportZoom(true)
+                        settings.builtInZoomControls = true
+                        settings.displayZoomControls = false
+                        settings.textZoom = 100
                         CookieManager.getInstance().setAcceptCookie(true)
                         CookieManager.getInstance().setAcceptThirdPartyCookies(this, true)
                         webChromeClient = object : WebChromeClient() {

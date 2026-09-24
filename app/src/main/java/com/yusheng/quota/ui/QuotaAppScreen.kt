@@ -96,7 +96,7 @@ fun QuotaAppRoot(vm: QuotaViewModel) {
         vm.events.collect { event ->
             when (event) {
                 is QuotaViewModel.Event.QueryFinished ->
-                    snackbar.showSnackbar(event.error?.let { "$queryFailed：$it" } ?: queryOk)
+                    event.error?.let { snackbar.showSnackbar("$queryFailed：$it") }
                 is QuotaViewModel.Event.Message ->
                     snackbar.showSnackbar(event.text)
             }
@@ -118,6 +118,24 @@ fun QuotaAppRoot(vm: QuotaViewModel) {
         Scaffold(
             containerColor = MaterialTheme.colorScheme.background,
             snackbarHost = { SnackbarHost(snackbar) },
+            bottomBar = {
+                if (screen == Screen.HOME || screen == Screen.CATALOG || screen == Screen.SETTINGS) {
+                    GlassBottomBar(
+                        current = when (screen) {
+                            Screen.CATALOG -> 1
+                            Screen.SETTINGS -> 2
+                            else -> 0
+                        },
+                        onSelect = { idx ->
+                            screen = when (idx) {
+                                1 -> Screen.CATALOG
+                                2 -> Screen.SETTINGS
+                                else -> Screen.HOME
+                            }
+                        },
+                    )
+                }
+            },
             topBar = {
                 var title: String = stringResource(R.string.app_name)
                 var back: (() -> Unit)? = null
@@ -155,14 +173,6 @@ fun QuotaAppRoot(vm: QuotaViewModel) {
                         }
                     },
                     actions = {
-                        if (screen == Screen.HOME) {
-                            IconButton(onClick = { screen = Screen.SETTINGS }) {
-                                Icon(Icons.Default.Settings, contentDescription = stringResource(R.string.title_settings))
-                            }
-                            IconButton(onClick = { screen = Screen.CATALOG }) {
-                                Icon(Icons.Default.Add, contentDescription = stringResource(R.string.action_add))
-                            }
-                        }
                         if (screen == Screen.HOME || screen == Screen.DETAIL) {
                             IconButton(onClick = {
                                 if (screen == Screen.DETAIL) activeId?.let { vm.refresh(it) } else vm.refreshAll()

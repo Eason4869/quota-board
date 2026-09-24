@@ -149,6 +149,24 @@
 
     <string name="toast_query_ok">查询成功</string>
     <string name="toast_query_failed">查询失败</string>
+    <string name="action_open_browser">用浏览器打开</string>
+    <string name="nav_home">主页</string>
+    <string name="nav_add">添加</string>
+    <string name="nav_settings">设置</string>
+    <string name="update_available">发现新版本</string>
+    <string name="update_download">下载更新</string>
+    <string name="update_later">稍后</string>
+    <string name="update_none">已是最新版本</string>
+    <string name="action_check_update">检查更新</string>
+    <string name="action_open_browser">用浏览器打开</string>
+    <string name="nav_home">主页</string>
+    <string name="nav_add">添加</string>
+    <string name="nav_settings">设置</string>
+    <string name="update_available">发现新版本</string>
+    <string name="update_download">下载更新</string>
+    <string name="update_later">稍后</string>
+    <string name="update_none">已是最新版本</string>
+    <string name="action_check_update">检查更新</string>
     <string name="toast_cookie_captured">已记录登录态</string>
     <string name="toast_exported">已导出（已复制到剪贴板）</string>
     <string name="toast_imported">已导入</string>
