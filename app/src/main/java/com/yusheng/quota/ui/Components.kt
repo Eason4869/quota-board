@@ -1,6 +1,9 @@
 package com.yusheng.quota.ui
 
 import androidx.compose.foundation.Image
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -11,6 +14,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
@@ -23,10 +27,13 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
@@ -63,7 +70,10 @@ fun logoResFor(templateId: String): Int = when (templateId) {
     else -> R.drawable.logo_generic
 }
 
-/** 液态玻璃底栏：仅图标（主页 / 添加 / 设置） */
+/**
+ * 液态玻璃底栏：悬浮胶囊 + 高光描边 + 选中态动效，仅图标。
+ * 自带导航栏内边距，避免被系统手势条压住。
+ */
 @Composable
 fun GlassBottomBar(current: Int, onSelect: (Int) -> Unit) {
     val items = listOf(
@@ -71,53 +81,60 @@ fun GlassBottomBar(current: Int, onSelect: (Int) -> Unit) {
         Triple(Icons.Default.Add, stringResource(R.string.nav_add), 1),
         Triple(Icons.Default.Settings, stringResource(R.string.nav_settings), 2),
     )
+    val shape = RoundedCornerShape(30.dp)
     Box(
         Modifier
             .fillMaxWidth()
-            .padding(horizontal = 22.dp, vertical = 14.dp),
+            .navigationBarsPadding()
+            .padding(horizontal = 22.dp, vertical = 10.dp),
     ) {
-        // 高光描边
+        // 玻璃层：外阴影 + 顶部高光 + 高光描边
         Box(
             Modifier
                 .matchParentSize()
-                .clip(RoundedCornerShape(32.dp))
+                .shadow(12.dp, shape, clip = false)
+                .clip(shape)
                 .background(Glass.highlight())
-                .border(1.2.dp, Glass.stroke(), RoundedCornerShape(32.dp)),
+                .border(1.2.dp, Glass.stroke(), shape),
         )
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .clip(RoundedCornerShape(32.dp))
+                .clip(shape)
                 .background(Glass.surfaceStrong())
-                .padding(vertical = 10.dp),
+                .padding(vertical = 8.dp),
             horizontalArrangement = Arrangement.SpaceEvenly,
             verticalAlignment = Alignment.CenterVertically,
         ) {
             items.forEach { (icon, label, idx) ->
                 val selected = current == idx
+                val pillColor by animateColorAsState(
+                    if (selected) MaterialTheme.colorScheme.primary.copy(alpha = 0.16f) else Color.Transparent,
+                    label = "navPill",
+                )
+                val iconTint by animateColorAsState(
+                    if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+                    label = "navTint",
+                )
+                val scale by animateFloatAsState(if (selected) 1.12f else 1f, label = "navScale")
                 Box(
                     modifier = Modifier
-                        .size(52.dp)
-                        .clip(RoundedCornerShape(18.dp))
-                        .background(
-                            if (selected) {
-                                MaterialTheme.colorScheme.primary.copy(alpha = 0.18f)
-                            } else {
-                                Color.Transparent
-                            }
-                        )
+                        .size(54.dp)
+                        .clip(RoundedCornerShape(20.dp))
+                        .background(pillColor)
                         .clickable { onSelect(idx) },
                     contentAlignment = Alignment.Center,
                 ) {
                     Icon(
                         imageVector = icon,
                         contentDescription = label,
-                        tint = if (selected) {
-                            MaterialTheme.colorScheme.primary
-                        } else {
-                            MaterialTheme.colorScheme.onSurfaceVariant
-                        },
-                        modifier = Modifier.size(24.dp),
+                        tint = iconTint,
+                        modifier = Modifier
+                            .size(24.dp)
+                            .graphicsLayer {
+                                scaleX = scale
+                                scaleY = scale
+                            },
                     )
                 }
             }
@@ -181,6 +198,12 @@ fun PeriodRow(period: Period, index: Int) {
     val color = PeriodColors[index % PeriodColors.size]
     val usedPct = period.usedPercent ?: 0.0
     val remainPct = period.remainPercent
+    val targetFraction = (usedPct / 100.0).toFloat().coerceIn(0f, 1f)
+    val animatedFraction by animateFloatAsState(
+        targetValue = targetFraction,
+        animationSpec = tween(600),
+        label = "periodBar",
+    )
 
     Column(modifier = Modifier.fillMaxWidth().padding(vertical = 6.dp)) {
         Row(
@@ -225,7 +248,7 @@ fun PeriodRow(period: Period, index: Int) {
         ) {
             Box(
                 modifier = Modifier
-                    .fillMaxWidth((usedPct / 100.0).toFloat().coerceIn(0f, 1f))
+                .fillMaxWidth(animatedFraction)
                     .height(8.dp)
                     .clip(RoundedCornerShape(999.dp))
                     .background(color),

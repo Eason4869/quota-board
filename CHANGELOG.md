@@ -3,19 +3,76 @@
 本项目遵循 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/) 与
 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [1.2.7] - 2026-09-24
+
+### 修复
+
+- **登录抓取**
+  - 支持弹窗式登录（`window.open` / `target="_blank"`），点了没反应的登录按钮现在能正常打开
+  - 网页渲染进程被系统回收时自动重建并回到当前页，修复白屏 / 只画一半
+  - 顶部新增「桌面版 / 手机版」一键切换：控制台只有桌面布局时，切到桌面版会自动缩放到屏幕宽度，不再显示不全
+  - 遇到 Google 登录（会主动拒绝应用内浏览器）时给出明确提示，并可直接用系统浏览器打开
+  - 主框架 HTTP 错误（403/404 等）与加载失败原因直接显示在底部状态行
+- **硅基流动**：国内站 `api.siliconflow.cn` 与国际站 `api.siliconflow.com` 自动依次尝试；
+  修正此前把真实的 401 `Token is invalid.` 误判成「接口已废弃 410」，导致报错信息误导的问题；
+  失败时会列出每个接口的真实返回，并提示该换域名还是该改用「登录取数」
+- **底栏**：加导航栏内边距，不再被系统手势条压住
+
+### 新增
+
+- **动效**：页面切换淡入位移、用量条增长动画、登录页淡入、底栏选中态渐变与缩放
+
+### 说明
+
+- versionName 与 Release 标签对齐为 1.2.7
+
+## [1.2.6] - 2026-09-24
+
+### 修复
+
+- 请求体统一使用空字符串，避免个别接口对 `null` body 报错
+
+## [1.2.5] - 2026-09-24
+
+### 修复
+
+- 补齐缺失的 `siliconFlowWithFallback` 定义，修复编译失败
+
 ## [1.2.4] - 2026-09-24
 
 ### 修复
 
 - **登录 WebView**：改用纯 Chrome 手机 UA（去掉系统 `wv` 标记），站点不再拒绝加载登录页；开启 DOM / 混合内容 / 宽视口 / 缩放
 - **用浏览器打开**：改用系统 Chooser，并增加底部主按钮；非 http(s) 链接也会转交系统
-- **硅基流动**：`/v1/user/info` 返回 410（endpoint deprecated）时自动回退到控制台余额接口，并提示改用「登录取数」
-- **版本号**：安装包 versionName 与 Release 标签对齐
+- **底栏**：仅图标，去掉文字
 
 ### 新增
 
 - **液态玻璃 UI**：卡片 / 底栏 / 背景采用半透明玻璃 + 高光描边 + 顶部微亮渐变
-- **底栏仅图标**：去掉「主页 / 添加 / 设置」文字
+
+## [1.2.3] - 2026-09-24
+
+### 修复
+
+- 修复图标导入冲突、`Glass` 重复声明、`openInBrowser` 缺失导致的编译失败
+
+## [1.2.2] - 2026-09-24
+
+### 修复
+
+- 去除重复的字符串资源；版本号与 Release 标签对齐
+
+## [1.2.1] - 2026-09-24
+
+### 新增
+
+- **液态玻璃底栏**：主页 / 添加 / 设置三个入口
+- **应用内更新检查**
+- **厂商目录排序**调整
+
+### 修复
+
+- 登录 WebView 使用移动端 UA
 
 ## [1.2.0] - 2026-09-23
 
@@ -28,6 +85,19 @@
 ### 修复
 
 - **系统返回手势**：适配边缘返回，设置项改为实时生效
+
+## [1.1.1] - 2026-09-23
+
+### 新增
+
+- **正式签名发布**：Release 与 CI 统一使用 release keystore 签名
+- **界面预览位**：README 预留截图位与说明
+
+### 修复
+
+- 系统返回键 / 侧边滑动返回按页面层级回退，不再直接退出应用
+- 登录页为状态栏与导航栏留出安全区域
+- 设置项修改即生效，去掉「保存」按钮与保存成功提示
 
 ## [1.1.0] - 2026-09-23
 
@@ -87,7 +157,14 @@
 - 火山 Agent / Coding Plan 需使用账号级 AK/SK（非推理 API Key）
 - 智谱团队版需额外填写组织 ID / 项目 ID
 
+[1.2.7]: https://github.com/Eason4869/quota-board/releases/tag/v1.2.7
+[1.2.6]: https://github.com/Eason4869/quota-board/releases/tag/v1.2.6
+[1.2.5]: https://github.com/Eason4869/quota-board/releases/tag/v1.2.5
 [1.2.4]: https://github.com/Eason4869/quota-board/releases/tag/v1.2.4
+[1.2.3]: https://github.com/Eason4869/quota-board/releases/tag/v1.2.3
+[1.2.2]: https://github.com/Eason4869/quota-board/releases/tag/v1.2.2
+[1.2.1]: https://github.com/Eason4869/quota-board/releases/tag/v1.2.1
 [1.2.0]: https://github.com/Eason4869/quota-board/releases/tag/v1.2.0
+[1.1.1]: https://github.com/Eason4869/quota-board/releases/tag/v1.1.1
 [1.1.0]: https://github.com/Eason4869/quota-board/releases/tag/v1.1.0
 [1.0.0]: https://github.com/Eason4869/quota-board/releases/tag/v1.0.0

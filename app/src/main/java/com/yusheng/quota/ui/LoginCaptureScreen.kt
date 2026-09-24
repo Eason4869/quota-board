@@ -3,14 +3,20 @@ package com.yusheng.quota.ui
 import android.annotation.SuppressLint
 import android.content.ActivityNotFoundException
 import android.content.Intent
+import android.graphics.Bitmap
 import android.net.Uri
+import android.os.Message
 import android.webkit.CookieManager
+import android.webkit.RenderProcessGoneDetail
 import android.webkit.WebChromeClient
 import android.webkit.WebResourceError
 import android.webkit.WebResourceRequest
+import android.webkit.WebResourceResponse
 import android.webkit.WebSettings
 import android.webkit.WebView
 import android.webkit.WebViewClient
+import androidx.activity.compose.BackHandler
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -21,11 +27,16 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawingPadding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.DesktopWindows
 import androidx.compose.material.icons.filled.OpenInBrowser
+import androidx.compose.material.icons.filled.PhoneAndroid
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material3.Button
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
@@ -33,6 +44,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.key
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -47,21 +59,27 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
-import androidx.activity.compose.BackHandler
 import com.yusheng.quota.R
 import org.json.JSONObject
 
-/** 纯 Chrome 手机 UA：去掉系统 WebView 的 `wv` 标记，避免站点识别后拒绝加载登录页 */
+/** 手机 UA：去掉系统 WebView 的 `wv` 标记，站点才会给出可登录的移动页 */
 private const val MOBILE_UA =
     "Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Mobile Safari/537.36"
+
+/** 桌面 UA：控制台只有桌面版布局时，配合「宽度自适应」把整页缩到屏幕里 */
+private const val DESKTOP_UA =
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36"
 
 /**
  * 应用内登录 + 取数。
  *
  * 用 WebView 解决两件事：
- *  1. 登录后从 WebView 的 Cookie Jar 里取 Cookie（HttpOnly 之外的部分）
+ *  1. 登录后从 Cookie Jar 里取 Cookie（HttpOnly 之外的部分）
  *  2. **在页面内直接 fetch 额度接口** —— 同源 + 自动带登录态，
  *     这也是 HttpOnly 会话唯一可行的取数方式
+ *
+ * 针对各站点登录页的常见坑做了处理：弹窗式登录（window.open）、
+ * 桌面版布局、渲染进程被回收导致的白屏，以及 Google 登录拒绝 WebView。
  *
  * 返回值：`(cookie, json)`。json 为 null 表示这次没取到额度数据。
  */
@@ -78,12 +96,19 @@ fun LoginCaptureScreen(
     var progress by remember { mutableIntStateOf(0) }
     var busy by remember { mutableStateOf(false) }
     var status by remember { mutableStateOf("") }
+    var desktopMode by remember { mutableStateOf(false) }
+    var webViewKey by remember { mutableIntStateOf(0) }
     val webView = remember { mutableStateOf<WebView?>(null) }
 
     val loggedInText = stringResource(R.string.login_state_logged_in)
     val notLoggedInText = stringResource(R.string.login_state_unknown)
     val fetchFailedText = stringResource(R.string.login_fetch_failed)
     val openBrowserText = stringResource(R.string.action_open_browser)
+    val desktopText = stringResource(R.string.login_desktop_mode)
+    val mobileText = stringResource(R.string.login_mobile_mode)
+    val googleBlockedText = stringResource(R.string.login_google_blocked)
+    val progressAlpha by animateFloatAsState(if (progress in 1..99) 1f else 0f, label = "loginProgress")
+
     val ctx = LocalContext.current
 
     fun openInBrowser(rawUrl: String?) {
@@ -108,8 +133,9 @@ fun LoginCaptureScreen(
     }
 
     Column(Modifier.fillMaxSize().safeDrawingPadding()) {
+        // ── 顶部：关闭 / 地址 / 模式切换 / 浏览器 / 刷新 ──
         Row(
-            Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 8.dp),
+            Modifier.fillMaxWidth().padding(horizontal = 4.dp, vertical = 2.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             IconButton(onClick = onCancel) {
@@ -117,17 +143,25 @@ fun LoginCaptureScreen(
             }
             Column(Modifier.weight(1f)) {
                 Text(
-                    stringResource(R.string.title_login),
-                    fontSize = 16.sp,
-                    fontWeight = FontWeight.SemiBold,
-                    color = MaterialTheme.colorScheme.onSurface,
-                )
-                Text(
                     currentUrl,
                     fontSize = 11.sp,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+            IconButton(
+                onClick = {
+                    desktopMode = !desktopMode
+                    webView.value?.let { wv ->
+                        wv.settings.userAgentString = if (desktopMode) DESKTOP_UA else MOBILE_UA
+                        wv.reload()
+                    }
+                },
+            ) {
+                Icon(
+                    if (desktopMode) Icons.Default.PhoneAndroid else Icons.Default.DesktopWindows,
+                    contentDescription = if (desktopMode) mobileText else desktopText,
                 )
             }
             IconButton(onClick = { openInBrowser(webView.value?.url ?: currentUrl) }) {
@@ -138,20 +172,24 @@ fun LoginCaptureScreen(
             }
         }
 
-        if (progress in 1..99) {
+        // 进度条常驻占位，避免加载时高度跳动
+        // 进度条常驻占位，避免加载时高度跳动
+        Box(Modifier.fillMaxWidth().height(2.dp)) {
             LinearProgressIndicator(
                 progress = { progress / 100f },
                 modifier = Modifier.fillMaxWidth().height(2.dp),
+                color = MaterialTheme.colorScheme.primary.copy(alpha = progressAlpha),
             )
         }
 
         Box(Modifier.weight(1f)) {
-            AndroidView(
-                factory = { context ->
+            // 渲染进程被回收后，用 key 触发 AndroidView 重建
+            key(webViewKey) {
+                AndroidView(
+                    factory = { context ->
                     WebView(context).apply {
                         settings.javaScriptEnabled = true
                         settings.domStorageEnabled = true
-                        settings.databaseEnabled = true
                         settings.loadWithOverviewMode = true
                         settings.useWideViewPort = true
                         settings.setSupportZoom(true)
@@ -162,20 +200,37 @@ fun LoginCaptureScreen(
                         settings.mixedContentMode = WebSettings.MIXED_CONTENT_COMPATIBILITY_MODE
                         settings.javaScriptCanOpenWindowsAutomatically = true
                         settings.mediaPlaybackRequiresUserGesture = false
+                        // 弹窗式登录（window.open / target=_blank）必须开启，否则点了没反应
+                        settings.setSupportMultipleWindows(true)
                         settings.allowFileAccess = false
                         settings.allowContentAccess = false
-                        // 去掉 wv 标记 + 固定手机 UA，站点才会给出可登录的移动页
-                        settings.userAgentString = MOBILE_UA
+                        settings.userAgentString = if (desktopMode) DESKTOP_UA else MOBILE_UA
                         CookieManager.getInstance().setAcceptCookie(true)
                         CookieManager.getInstance().setAcceptThirdPartyCookies(this, true)
+
                         webChromeClient = object : WebChromeClient() {
                             override fun onProgressChanged(view: WebView?, newProgress: Int) {
                                 progress = newProgress
                             }
+
+                            /** 登录页常见的弹窗：直接复用当前 WebView 打开，登录态才不会丢 */
+                            override fun onCreateWindow(
+                                view: WebView?,
+                                isDialog: Boolean,
+                                isUserGesture: Boolean,
+                                resultMsg: Message?,
+                            ): Boolean {
+                                val transport = resultMsg?.obj as? WebView.WebViewTransport ?: return false
+                                transport.webView = view
+                                resultMsg.sendToTarget()
+                                return true
+                            }
                         }
+
                         webViewClient = object : WebViewClient() {
-                            override fun onPageStarted(view: WebView?, url: String?, favicon: android.graphics.Bitmap?) {
+                            override fun onPageStarted(view: WebView?, url: String?, favicon: Bitmap?) {
                                 if (url != null) currentUrl = url
+                                progress = 10
                             }
 
                             override fun onPageFinished(view: WebView?, url: String?) {
@@ -184,6 +239,7 @@ fun LoginCaptureScreen(
                                     CookieManager.getInstance().getCookie(url)?.let { cookie = it }
                                 }
                                 progress = 100
+                                status = ""
                             }
 
                             override fun onReceivedError(
@@ -196,49 +252,85 @@ fun LoginCaptureScreen(
                                 }
                             }
 
+                            override fun onReceivedHttpError(
+                                view: WebView?,
+                                request: WebResourceRequest?,
+                                errorResponse: WebResourceResponse?,
+                            ) {
+                                if (request?.isForMainFrame == true) {
+                                    status = "HTTP ${errorResponse?.statusCode ?: 0}"
+                                }
+                            }
+
+                            /** 渲染进程被系统回收时会白屏 / 只画一半，重建 WebView 并回到当前页 */
+                            override fun onRenderProcessGone(
+                                view: WebView?,
+                                detail: RenderProcessGoneDetail?,
+                            ): Boolean {
+                                val back = view?.url ?: currentUrl
+                                runCatching {
+                                    view?.destroy()
+                                }
+                                webView.value = null
+                                webViewKey += 1
+                                currentUrl = back
+                                return true
+                            }
+
+                            override fun shouldOverrideUrlLoading(
+                                view: WebView?,
+                                request: WebResourceRequest?,
+                            ): Boolean {
+                                val url = request?.url?.toString().orEmpty()
+                                if (url.startsWith("http") || url.startsWith("about:")) return false
+                                openInBrowser(url)
+                                return true
+                            }
+
                             @Deprecated("Deprecated in Java")
                             @Suppress("DEPRECATION")
                             override fun shouldOverrideUrlLoading(view: WebView?, url: String?): Boolean {
                                 if (url.isNullOrBlank()) return false
-                                if (url.startsWith("http://") || url.startsWith("https://") || url.startsWith("about:")) {
-                                    return false
-                                }
-                                // 非 http(s) 交给系统（mailto / market / 自定义 scheme）
+                                if (url.startsWith("http") || url.startsWith("about:")) return false
                                 openInBrowser(url)
                                 return true
                             }
                         }
-                        loadUrl(startUrl)
-                        webView.value = this
-                    }
-                },
-                modifier = Modifier.fillMaxSize(),
-            )
+                            loadUrl(startUrl)
+                            webView.value = this
+                        }
+                    },
+                    modifier = Modifier.fillMaxSize(),
+                )
+            }
         }
 
-        Column(Modifier.fillMaxWidth().padding(16.dp)) {
+        // ── 底部：状态 + 操作（保持紧凑，把高度留给网页）──
+        Column(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 8.dp)) {
+            val isGoogle = currentUrl.contains("accounts.google.com")
             Text(
-                text = status.ifBlank {
-                    if (cookie.isNotBlank()) loggedInText else notLoggedInText
+                text = when {
+                    status.isNotBlank() -> status
+                    isGoogle -> googleBlockedText
+                    cookie.isNotBlank() -> loggedInText
+                    else -> notLoggedInText
                 },
-                fontSize = 12.sp,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                fontSize = 11.sp,
+                color = if (isGoogle) MaterialTheme.colorScheme.primary
+                else MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis,
             )
-            Spacer(Modifier.height(8.dp))
-            OutlinedButton(
-                onClick = { openInBrowser(webView.value?.url ?: currentUrl) },
-                modifier = Modifier.fillMaxWidth(),
+            Spacer(Modifier.height(6.dp))
+            Row(
+                Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalAlignment = Alignment.CenterVertically,
             ) {
-                Icon(Icons.Default.OpenInBrowser, contentDescription = null, modifier = Modifier.height(18.dp))
-                Spacer(Modifier.height(0.dp))
-                Text(openBrowserText)
-            }
-            Spacer(Modifier.height(8.dp))
-            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 OutlinedButton(
                     onClick = { onCaptured(cookie.takeIf { it.isNotBlank() }, null) },
                     modifier = Modifier.weight(1f),
-                ) { Text(stringResource(R.string.action_login_save_cookie)) }
+                ) { Text(stringResource(R.string.action_login_save_cookie), fontSize = 12.sp) }
 
                 Button(
                     onClick = {
@@ -269,7 +361,13 @@ fun LoginCaptureScreen(
                     },
                     modifier = Modifier.weight(1f),
                     enabled = !busy && fetchUrl.isNotBlank(),
-                ) { Text(stringResource(R.string.action_login_fetch_now)) }
+                ) {
+                    if (busy) {
+                        CircularProgressIndicator(Modifier.size(14.dp), strokeWidth = 2.dp)
+                        Spacer(Modifier.width(6.dp))
+                    }
+                    Text(stringResource(R.string.action_login_fetch_now), fontSize = 12.sp)
+                }
             }
         }
     }

@@ -1,6 +1,14 @@
 package com.yusheng.quota.ui
 
 import androidx.compose.foundation.background
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideOutHorizontally
+import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -191,7 +199,22 @@ fun QuotaAppRoot(vm: QuotaViewModel) {
             },
         ) { padding ->
             Box(Modifier.fillMaxSize().padding(padding)) {
-                when (screen) {
+                // 页面切换动效：淡入 + 微位移，方向跟随前进 / 后退
+                AnimatedContent(
+                    targetState = screen,
+                    transitionSpec = {
+                        val forward = targetState.ordinal >= initialState.ordinal
+                        (
+                            slideInHorizontally(tween(240)) { w -> if (forward) w / 10 else -w / 10 } +
+                                fadeIn(tween(220))
+                            ) togetherWith (
+                            slideOutHorizontally(tween(220)) { w -> if (forward) -w / 14 else w / 14 } +
+                                fadeOut(tween(160))
+                            )
+                    },
+                    label = "screen",
+                ) { target ->
+                when (target) {
                     Screen.HOME -> HomeScreen(
                         state = state,
                         onOpen = { activeId = it; vm.setActive(it); screen = Screen.DETAIL },
@@ -289,22 +312,29 @@ fun QuotaAppRoot(vm: QuotaViewModel) {
 
                     Screen.ABOUT -> AboutScreen()
                 }
+                }
             }
         }
 
         // 登录抓取：盖在配置页之上，保证配置页状态不丢
-        loginRequest?.let { req ->
-            Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
-                LoginCaptureScreen(
-                    startUrl = req.loginUrl,
-                    fetchUrl = req.fetchUrl,
-                    onCancel = { loginRequest = null },
-                    onCaptured = { cookie, json ->
-                        req.onResult(cookie, json)
-                        loginRequest = null
-                        vm.emit(ctx.getString(R.string.toast_cookie_captured))
-                    },
-                )
+        AnimatedVisibility(
+            visible = loginRequest != null,
+            enter = fadeIn(tween(180)),
+            exit = fadeOut(tween(150)),
+        ) {
+            loginRequest?.let { req ->
+                Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
+                    LoginCaptureScreen(
+                        startUrl = req.loginUrl,
+                        fetchUrl = req.fetchUrl,
+                        onCancel = { loginRequest = null },
+                        onCaptured = { cookie, json ->
+                            req.onResult(cookie, json)
+                            loginRequest = null
+                            vm.emit(ctx.getString(R.string.toast_cookie_captured))
+                        },
+                    )
+                }
             }
         }
     }

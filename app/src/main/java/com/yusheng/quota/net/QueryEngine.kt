@@ -76,48 +76,51 @@ class QueryEngine(private val context: Context) {
 
 
     /**
-     * 硅基流动 `/v1/user/info` 已返回 410 Gone。
-     * 依次尝试：用户配置 URL → 官方 user/info → 控制台余额接口（需登录 Cookie）。
+     * 硅基流动：国内站与国际站是两套域名，同一个 Key 通常在其中一个站点有效。
+     * 依次尝试「用户填的地址 → 国内站 → 国际站 → 控制台接口」，
+     * 并把每个候选的真实错误都带出来，避免只看到最后一条误导性的失败信息。
      */
     private suspend fun siliconFlowWithFallback(cfg: QueryConfig, timeoutSec: Int): JSONObject {
-        val candidates = listOf(
-            cfg.url,
-            "https://api.siliconflow.cn/v1/user/info",
-            "https://account.siliconflow.cn/api/user/balance",
-        ).filter { it.isNotBlank() }.distinct()
+        val consoleUrl = "https://account.siliconflow.cn/api/user/balance"
+        val candidates = LinkedHashSet<String>().apply {
+            add(cfg.url)
+            add("https://api.siliconflow.cn/v1/user/info")
+            add("https://api.siliconflow.com/v1/user/info")
+            if (cfg.cookie.isNotBlank()) add(consoleUrl)
+        }.filter { it.isNotBlank() }
 
-        var lastErr = "HTTP 410: this endpoint is deprecated and is no longer available"
+        val errors = mutableListOf<String>()
+        var unauthorized = false
+
         for (url in candidates) {
+            val isConsole = url.contains("account.siliconflow.cn")
             try {
-                val isConsole = url.contains("account.siliconflow.cn")
-                val headers = if (isConsole) loginHeaders(cfg) else apiHeaders("siliconflow", cfg)
-                val json = requestJson(
+                return requestJson(
                     method = "GET",
                     url = url,
-                    headers = headers,
+                    headers = if (isConsole) loginHeaders(cfg) else apiHeaders("siliconflow", cfg),
                     body = "",
                     timeoutSec = timeoutSec,
                     mode = if (isConsole) QueryMode.LOGIN else QueryMode.API,
                 )
-                val msg = json.optString("message") + json.optString("msg") + json.optString("error")
-                if (json.optInt("code") == 410 ||
-                    msg.contains("deprecated", true) ||
-                    msg.contains("no longer available", true)
-                ) {
-                    lastErr = "HTTP 410: $url — this endpoint is deprecated and is no longer available"
-                    continue
-                }
-                return json
             } catch (e: Exception) {
                 val m = e.message.orEmpty()
-                lastErr = if (m.contains("410") || m.contains("deprecated", true)) {
-                    "HTTP 410: $url — this endpoint is deprecated and is no longer available"
-                } else {
-                    m.ifBlank { lastErr }
+                if (m.contains("401") || m.contains("403") || m.contains("invalid", true)) {
+                    unauthorized = true
                 }
+                errors += "$url → ${m.ifBlank { "未知错误" }}"
             }
         }
-        throw IllegalStateException("$lastErr | 请改用「登录取数」或云函数")
+
+        val hint = if (unauthorized) {
+            "\n\n请检查 API Key 是否有效，以及账号属于哪个站点：\n" +
+                "· 国内站：api.siliconflow.cn（在 cloud.siliconflow.cn 创建的 Key）\n" +
+                "· 国际站：api.siliconflow.com（在 siliconflow.com 创建的 Key）\n" +
+                "把「查询 URL」改成对应站点即可。控制台余额接口不认 API Key，需要改用「登录拉取」。"
+        } else {
+            ""
+        }
+        throw IllegalStateException(errors.joinToString("\n") + hint)
     }
 
     // ── 自定义提取器（在 WebView 里执行配置的 JS）──────────
