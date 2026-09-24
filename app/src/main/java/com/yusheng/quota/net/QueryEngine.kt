@@ -74,6 +74,52 @@ class QueryEngine(private val context: Context) {
             ?: Parsers.parse(template.id, json, cfg.mapBalance, cfg.mapPlan, context)
     }
 
+
+    /**
+     * 硅基流动 `/v1/user/info` 已返回 410 Gone。
+     * 依次尝试：用户配置 URL → 官方 user/info → 控制台余额接口（需登录 Cookie）。
+     */
+    private suspend fun siliconFlowWithFallback(cfg: QueryConfig, timeoutSec: Int): JSONObject {
+        val candidates = listOf(
+            cfg.url,
+            "https://api.siliconflow.cn/v1/user/info",
+            "https://account.siliconflow.cn/api/user/balance",
+        ).filter { it.isNotBlank() }.distinct()
+
+        var lastErr = "HTTP 410: this endpoint is deprecated and is no longer available"
+        for (url in candidates) {
+            try {
+                val isConsole = url.contains("account.siliconflow.cn")
+                val headers = if (isConsole) loginHeaders(cfg) else apiHeaders("siliconflow", cfg)
+                val json = requestJson(
+                    method = "GET",
+                    url = url,
+                    headers = headers,
+                    body = null,
+                    timeoutSec = timeoutSec,
+                    mode = if (isConsole) QueryMode.LOGIN else QueryMode.API,
+                )
+                val msg = json.optString("message") + json.optString("msg") + json.optString("error")
+                if (json.optInt("code") == 410 ||
+                    msg.contains("deprecated", true) ||
+                    msg.contains("no longer available", true)
+                ) {
+                    lastErr = "HTTP 410: $url — this endpoint is deprecated and is no longer available"
+                    continue
+                }
+                return json
+            } catch (e: Exception) {
+                val m = e.message.orEmpty()
+                lastErr = if (m.contains("410") || m.contains("deprecated", true)) {
+                    "HTTP 410: $url — this endpoint is deprecated and is no longer available"
+                } else {
+                    m.ifBlank { lastErr }
+                }
+            }
+        }
+        throw IllegalStateException("$lastErr | 请改用「登录取数」或云函数")
+    }
+
     // ── 自定义提取器（在 WebView 里执行配置的 JS）──────────
     private suspend fun runScriptExtractor(cfg: QueryConfig, json: JSONObject): QueryResult? {
         val code = cfg.script
