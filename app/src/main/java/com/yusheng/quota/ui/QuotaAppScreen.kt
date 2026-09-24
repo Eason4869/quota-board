@@ -110,6 +110,8 @@ fun QuotaAppRoot(vm: QuotaViewModel) {
     var draftName by remember { mutableStateOf("") }
     var draftCfg by remember { mutableStateOf(QueryConfig()) }
     var loginRequest by remember { mutableStateOf<LoginRequest?>(null) }
+    /** 更新弹窗：只在用户主动点「关于」页那一行后打开 */
+    var showUpdate by remember { mutableStateOf(false) }
     // Dock 背景模糊的「源」：页面内容挂 haze()，Dock 用 hazeChild() 取这份内容的模糊拷贝。
     // 两边必须共用同一个实例，否则 Dock 取不到背后的内容。
     val dockHaze = remember { HazeState() }
@@ -134,8 +136,8 @@ fun QuotaAppRoot(vm: QuotaViewModel) {
     LaunchedEffect(Unit) {
         vm.events.collect { event ->
             when (event) {
-                is QuotaViewModel.Event.QueryFinished ->
-                    event.error?.let { snackbar.showSnackbar("$queryFailed：$it") }
+                // 查询结果不弹提示：失败信息在账户详情页的错误卡片里，成功由数值本身体现
+                is QuotaViewModel.Event.QueryFinished -> Unit
                 is QuotaViewModel.Event.Message ->
                     snackbar.showSnackbar(
                         when (event.text) {
@@ -365,7 +367,11 @@ fun QuotaAppRoot(vm: QuotaViewModel) {
                     Screen.ABOUT -> AboutScreen(
                         checking = state.update.checking,
                         latestVersion = state.update.info?.versionName,
-                        onCheckUpdate = { vm.checkUpdate(manual = true) },
+                        // 有新版就直接开更新弹窗；没有才去检查 —— 检查结果不再自动弹窗
+                        onCheckUpdate = {
+                            if (state.update.info != null) showUpdate = true
+                            else vm.checkUpdate(manual = true)
+                        },
                     )
                 }
                 }
@@ -422,11 +428,12 @@ fun QuotaAppRoot(vm: QuotaViewModel) {
         // ── 应用内更新：检测到新版本就在这里下载并直接调起安装器 ──
         val upd = state.update
         val info = upd.info
-        if (info != null && !upd.dismissed) {
+        // 更新弹窗只在用户主动点「关于」页那一行后出现，不再自动弹
+        if (info != null && showUpdate) {
             val downloadFailed = stringResource(R.string.update_download_failed)
             val installFailed = stringResource(R.string.update_install_failed)
             AlertDialog(
-                onDismissRequest = { vm.dismissUpdate() },
+                onDismissRequest = { showUpdate = false; vm.dismissUpdate() },
                 title = { Text(stringResource(R.string.update_dialog_title, info.versionName)) },
                 text = {
                     Column {
@@ -515,7 +522,7 @@ fun QuotaAppRoot(vm: QuotaViewModel) {
                     }
                 },
                 dismissButton = {
-                    TextButton(onClick = { vm.dismissUpdate() }) {
+                    TextButton(onClick = { showUpdate = false; vm.dismissUpdate() }) {
                         Text(stringResource(R.string.update_later))
                     }
                 },

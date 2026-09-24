@@ -143,6 +143,8 @@ private const val PROBE_JS = """
         var d = document, b = d.body, r = d.getElementById('root');
         o.ready = cut(d.readyState, 12);
         o.text = b ? (b.innerText || '').trim().length : -1;
+        // 正文**内容**（不是长度）：页面只画出 90 个字时，那 90 个字就是全部线索
+        o.txt = cut(b ? (b.innerText || '').replace(/\s+/g, ' ').trim() : '', 140);
         o.html = b ? b.innerHTML.length : -1;
         o.root = r ? r.childElementCount : -1;
         o.rootHtml = r ? r.innerHTML.length : -1;
@@ -150,6 +152,10 @@ private const val PROBE_JS = """
         o.js = sc.length;
         o.js1 = sc.length ? cut(sc[sc.length - 1].src, 90) : '';
         o.pre = d.querySelectorAll('link[rel=preload]').length;
+        // 风控验证码之类的组件常挂在 iframe 里：有没有 iframe、首个指向哪，一眼定位
+        var ifr = d.querySelectorAll('iframe');
+        o.ifr = ifr.length;
+        o.ifr1 = ifr.length ? cut(ifr[0].src || '(no src)', 90) : '';
         var rs = performance.getEntriesByType('resource') || [];
         o.res = rs.length;
         var bad = [];
@@ -234,6 +240,17 @@ private fun desktopUaFrom(engineMajor: Int?): String =
 /** 从 UA（或 WebView 内核包版本号）里取 Chrome 主版本 */
 private fun engineMajorOf(ua: String?): Int? =
     ua?.let { Regex("Chrome/(\\d+)").find(it)?.groupValues?.get(1)?.toIntOrNull() }
+
+/** SSO 站点按 UA 下发不同布局，进这些域一律用手机版 */
+private val SSO_HOSTS = listOf(
+    "account.xiaomi.com",
+    "accounts.google.com",
+    "login.microsoftonline.com",
+    "appleid.apple.com",
+)
+
+private fun isSsoHost(url: String?): Boolean =
+    url != null && SSO_HOSTS.any { url.contains(it, ignoreCase = true) }
 
 /**
  * 这条控制台报错像不像「内核太老，脚本根本跑不起来」。
@@ -632,11 +649,47 @@ fun LoginCaptureScreen(
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 }
-                IconButton(onClick = { webView.value?.let { startNewLoad(it, reload = true) } }) {
-                    Icon(Icons.Default.Refresh, contentDescription = stringResource(R.string.action_refresh))
+                // 适应宽度：桌面版控制台一键缩到屏幕内
+                IconButton(
+                    modifier = Modifier.size(40.dp),
+                    onClick = { webView.value?.let { fitToWidth(it) } },
+                ) {
+                    Icon(Icons.Default.ZoomOutMap, contentDescription = fitText, modifier = Modifier.size(20.dp))
                 }
-                IconButton(onClick = { immersive = true }) {
-                    Icon(Icons.Default.Fullscreen, contentDescription = stringResource(R.string.login_fullscreen))
+                // 手机版 / 桌面版：图标即当前模式（默认手机版）
+                IconButton(
+                    modifier = Modifier.size(40.dp),
+                    onClick = {
+                        desktopMode = !desktopMode
+                        webView.value?.let { wv ->
+                            wv.settings.userAgentString = if (desktopMode) desktopUa else mobileUa
+                            startNewLoad(wv, reload = true)
+                        }
+                    },
+                ) {
+                    Icon(
+                        if (desktopMode) Icons.Default.DesktopWindows else Icons.Default.PhoneAndroid,
+                        contentDescription = if (desktopMode) mobileText else desktopText,
+                        modifier = Modifier.size(20.dp),
+                    )
+                }
+                IconButton(
+                    modifier = Modifier.size(40.dp),
+                    onClick = { openInBrowser(webView.value?.url ?: currentUrl) },
+                ) {
+                    Icon(Icons.Default.OpenInBrowser, contentDescription = openBrowserText, modifier = Modifier.size(20.dp))
+                }
+                IconButton(
+                    modifier = Modifier.size(40.dp),
+                    onClick = { webView.value?.let { startNewLoad(it, reload = true) } },
+                ) {
+                    Icon(Icons.Default.Refresh, contentDescription = stringResource(R.string.action_refresh), modifier = Modifier.size(20.dp))
+                }
+                IconButton(
+                    modifier = Modifier.size(40.dp),
+                    onClick = { immersive = true },
+                ) {
+                    Icon(Icons.Default.Fullscreen, contentDescription = stringResource(R.string.login_fullscreen), modifier = Modifier.size(20.dp))
                 }
             }
         }
@@ -698,20 +751,23 @@ fun LoginCaptureScreen(
 
                             webChromeClient = object : WebChromeClient() {
                                 override fun onProgressChanged(view: WebView?, newProgress: Int) {
-                                    progress = newProgress
+                                    runCatching { progress = newProgress }
                                 }
 
                                 /** 记录第一条脚本错误：白屏大多是脚本挂了 */
                                 override fun onConsoleMessage(msg: ConsoleMessage?): Boolean {
-                                    val text = msg?.message().orEmpty()
-                                    if (text.isNotBlank() && consoleAll.size < MAX_DIAG_LINES) {
-                                        consoleAll = consoleAll + "${msg?.messageLevel()}: ${text.take(100)}"
-                                        Log.i(TAG, "console ${msg?.messageLevel()}: $text")
-                                    }
-                                    if (consoleError.isBlank() &&
-                                        (msg?.messageLevel() == ConsoleMessage.MessageLevel.ERROR || text.contains("error", true))
-                                    ) {
-                                        consoleError = text.take(120)
+                                    // 回调里抛异常会直接崩掉应用，全部兜住
+                                    runCatching {
+                                        val text = msg?.message().orEmpty()
+                                        if (text.isNotBlank() && consoleAll.size < MAX_DIAG_LINES) {
+                                            consoleAll = consoleAll + "${msg?.messageLevel()}: ${text.take(100)}"
+                                            Log.i(TAG, "console ${msg?.messageLevel()}: $text")
+                                        }
+                                        if (consoleError.isBlank() &&
+                                            (msg?.messageLevel() == ConsoleMessage.MessageLevel.ERROR || text.contains("error", true))
+                                        ) {
+                                            consoleError = text.take(120)
+                                        }
                                     }
                                     return false
                                 }
@@ -723,32 +779,48 @@ fun LoginCaptureScreen(
                                     isUserGesture: Boolean,
                                     resultMsg: Message?,
                                 ): Boolean {
-                                    val transport = resultMsg?.obj as? WebView.WebViewTransport ?: return false
-                                    transport.webView = view
-                                    resultMsg.sendToTarget()
-                                    return true
+                                    return runCatching {
+                                        // view 为空时不能塞进 transport：Google 登录这类弹窗走的就是这条
+                                        val target = view ?: return@runCatching false
+                                        val transport = resultMsg?.obj as? WebView.WebViewTransport
+                                            ?: return@runCatching false
+                                        transport.webView = target
+                                        resultMsg.sendToTarget()
+                                        true
+                                    }.getOrDefault(false)
                                 }
                             }
 
                             webViewClient = object : WebViewClient() {
                                 override fun onPageStarted(view: WebView?, url: String?, favicon: Bitmap?) {
-                                    if (url != null) currentUrl = url
-                                    progress = 10
-                                    responded = true
-                                    // 尽早挂错误钩子：入口 chunk 加载失败只以「未处理的 Promise 拒绝」
-                                    // 形式出现，等到 onPageFinished 再挂就已经错过了
-                                    view?.evaluateJavascript(ERROR_HOOK_JS) { }
-                                    Log.i(TAG, "onPageStarted $url")
+                                    runCatching {
+                                        if (url != null) currentUrl = url
+                                        progress = 10
+                                        responded = true
+                                        // SSO 站点按 UA 下发不同布局：一进这些域就切回手机版
+                                        // （只影响后续加载，不重载，避免打断正在进行的登录）
+                                        if (desktopMode && isSsoHost(url)) {
+                                            desktopMode = false
+                                            view?.settings?.userAgentString = mobileUa
+                                            Log.i(TAG, "auto switch to mobile UA for SSO host")
+                                        }
+                                        // 尽早挂错误钩子：入口 chunk 加载失败只以「未处理的 Promise 拒绝」
+                                        // 形式出现，等到 onPageFinished 再挂就已经错过了
+                                        view?.evaluateJavascript(ERROR_HOOK_JS) { }
+                                        Log.i(TAG, "onPageStarted $url")
+                                    }
                                 }
 
                                 override fun onPageFinished(view: WebView?, url: String?) {
-                                    if (url != null) {
-                                        currentUrl = url
-                                        CookieManager.getInstance().getCookie(url)?.let { cookie = it }
+                                    runCatching {
+                                        if (url != null) {
+                                            currentUrl = url
+                                            CookieManager.getInstance().getCookie(url)?.let { cookie = it }
+                                        }
+                                        progress = 100
+                                        finished = true
+                                        view?.evaluateJavascript(ERROR_HOOK_JS) { }
                                     }
-                                    progress = 100
-                                    finished = true
-                                    view?.evaluateJavascript(ERROR_HOOK_JS) { }
                                     // 空白页检测：原先只看 innerText 长度，分辨不了
                                     // 「HTML 压根没下来」和「HTML 下来了但脚本没渲染」——
                                     // 现在整份 DOM / 资源状态一次取回来（见 PROBE_JS）。
@@ -1002,46 +1074,16 @@ fun LoginCaptureScreen(
                     }
                 }
                 Spacer(Modifier.height(6.dp))
+                // 顶部图标已经承担了「适应宽度 / 模式切换 / 浏览器打开」，这里只留两个动作
                 Row(
                     Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(6.dp),
-                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
                 ) {
-                    // 适应宽度：桌面版控制台一键缩到屏幕内
-                    CompactAction(
-                        icon = { Icon(Icons.Default.ZoomOutMap, contentDescription = fitText) },
-                        label = fitText,
-                        onClick = { webView.value?.let { fitToWidth(it) } },
-                    )
-                    CompactAction(
-                        icon = {
-                            Icon(
-                                if (desktopMode) Icons.Default.PhoneAndroid else Icons.Default.DesktopWindows,
-                                contentDescription = if (desktopMode) mobileText else desktopText,
-                            )
-                        },
-                        label = if (desktopMode) mobileText else desktopText,
-                        onClick = {
-                            desktopMode = !desktopMode
-                            webView.value?.let { wv ->
-                                wv.settings.userAgentString = if (desktopMode) desktopUa else mobileUa
-                                startNewLoad(wv, reload = true)
-                            }
-                        },
-                    )
-                    CompactAction(
-                        icon = { Icon(Icons.Default.Save, contentDescription = stringResource(R.string.action_login_save_cookie)) },
-                        label = stringResource(R.string.action_login_save_cookie),
+                    OutlinedButton(
                         onClick = { onCaptured(cookie.takeIf { it.isNotBlank() }, null) },
-                    )
-                    CompactAction(
-                        icon = { Icon(Icons.Default.OpenInBrowser, contentDescription = openBrowserText) },
-                        label = openBrowserText,
-                        onClick = { openInBrowser(webView.value?.url ?: currentUrl) },
-                    )
-                }
-                Spacer(Modifier.height(8.dp))
-                Button(
+                        modifier = Modifier.weight(1f),
+                    ) { Text(stringResource(R.string.action_login_save_cookie), fontSize = 12.sp) }
+                    Button(
                     onClick = {
                         val wv = webView.value
                         if (wv == null || fetchUrl.isBlank()) {
@@ -1055,7 +1097,7 @@ fun LoginCaptureScreen(
                             if (body == null) status = fetchFailedText else onCaptured(c, body)
                         }
                     },
-                    modifier = Modifier.fillMaxWidth(),
+                    modifier = Modifier.weight(1.6f),
                     enabled = !busy && fetchUrl.isNotBlank(),
                 ) {
                     if (busy) {
@@ -1063,6 +1105,7 @@ fun LoginCaptureScreen(
                         Spacer(Modifier.width(6.dp))
                     }
                     Text(stringResource(R.string.action_login_fetch_now), fontSize = 13.sp)
+                }
                 }
             }
         }
@@ -1208,11 +1251,14 @@ private fun decodeJsString(raw: String?): JSONObject? {
 private data class PageProbe(
     val ready: String,
     val text: Int,
+    val textSample: String,
     val bodyHtml: Int,
     val rootChildren: Int,
     val rootHtml: Int,
     val scriptSrc: Int,
     val firstScript: String,
+    val iframes: Int,
+    val firstIframe: String,
     val resources: Int,
     val badResources: Int,
     val badDetail: String,
@@ -1226,11 +1272,16 @@ private data class PageProbe(
     fun line(): String = buildString {
         append("ready=").append(ready)
         append(" text=").append(text)
+        if (textSample.isNotBlank()) append(" txt=\"").append(textSample).append("\"")
         append(" body=").append(bodyHtml)
         append(" root=").append(rootChildren)
         append("/").append(rootHtml)
         append(" js=").append(scriptSrc)
         if (firstScript.isNotBlank()) append(" js1=").append(firstScript)
+        if (iframes > 0) {
+            append(" ifr=").append(iframes)
+            if (firstIframe.isNotBlank()) append("(").append(firstIframe).append(")")
+        }
         append(" res=").append(resources)
         append(" bad=").append(badResources)
         if (badDetail.isNotBlank()) append("(").append(badDetail).append(")")
@@ -1244,11 +1295,14 @@ private fun decodeProbe(raw: String?): PageProbe? {
     return PageProbe(
         ready = obj.optString("ready", "?"),
         text = obj.optInt("text", -1),
+        textSample = obj.optString("txt", ""),
         bodyHtml = obj.optInt("html", -1),
         rootChildren = obj.optInt("root", -1),
         rootHtml = obj.optInt("rootHtml", -1),
         scriptSrc = obj.optInt("js", -1),
         firstScript = obj.optString("js1", ""),
+        iframes = obj.optInt("ifr", 0),
+        firstIframe = obj.optString("ifr1", ""),
         resources = obj.optInt("res", -1),
         badResources = obj.optInt("badN", 0),
         badDetail = obj.optString("bad", ""),
