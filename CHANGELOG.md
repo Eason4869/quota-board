@@ -3,6 +3,10 @@
 本项目遵循 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/) 与
 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [1.2.26] - 2026-09-24
+
+- 千问：去掉已确认失效的探测路径，查询失败只列出真正可用的候选地址
+
 ## [1.2.25] - 2026-09-24
 
 - 新增厂商：千问 Token Plan（网关与控制台接口自动探测），使用官方图标
