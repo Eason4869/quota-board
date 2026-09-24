@@ -32,7 +32,7 @@
 | 订阅用量（令牌） | ChatGPT / Codex、Claude、Gemini、GitHub Copilot |
 | AK/SK 签名 | 火山方舟 Agent Plan / Coding Plan |
 | 云函数 | 任意厂商（自建函数或代理） |
-| 登录拉取 | 小米 MiMo，其余厂商按需选用 |
+| 登录拉取 | 小米 MiMo（额度只在登录态下可取）；其余厂商也可切换到该方式 |
 
 ## 界面预览
 
