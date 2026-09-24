@@ -76,6 +76,8 @@ import com.yusheng.quota.R
 import androidx.compose.foundation.background
 import androidx.compose.ui.graphics.Brush
 import com.yusheng.quota.ui.theme.Glass
+import dev.chrisbanes.haze.HazeState
+import dev.chrisbanes.haze.haze
 import com.yusheng.quota.data.Account
 import com.yusheng.quota.data.QueryConfig
 import com.yusheng.quota.data.QueryMode
@@ -83,7 +85,7 @@ import com.yusheng.quota.data.Template
 import com.yusheng.quota.data.Templates
 import kotlin.math.roundToInt
 
-private enum class Screen { HOME, DETAIL, CATALOG, CONFIG, SETTINGS, ABOUT }
+private enum class Screen { HOME, DETAIL, CATALOG, CONFIG, SETTINGS, BACKUP, ABOUT }
 
 /** 悬浮 Dock 占位高度：内容底部留白，保证最后一项不会被 Dock 挡住 */
 private val DockSpace = 84.dp
@@ -108,6 +110,9 @@ fun QuotaAppRoot(vm: QuotaViewModel) {
     var draftName by remember { mutableStateOf("") }
     var draftCfg by remember { mutableStateOf(QueryConfig()) }
     var loginRequest by remember { mutableStateOf<LoginRequest?>(null) }
+    // Dock 背景模糊的「源」：页面内容挂 haze()，Dock 用 hazeChild() 取这份内容的模糊拷贝。
+    // 两边必须共用同一个实例，否则 Dock 取不到背后的内容。
+    val dockHaze = remember { HazeState() }
 
     val ctx = LocalContext.current
     val queryOk = stringResource(R.string.toast_query_ok)
@@ -149,7 +154,7 @@ fun QuotaAppRoot(vm: QuotaViewModel) {
         screen = when (screen) {
             Screen.DETAIL, Screen.CATALOG, Screen.SETTINGS -> Screen.HOME
             Screen.CONFIG -> if (editing != null) Screen.DETAIL else Screen.CATALOG
-            Screen.ABOUT -> Screen.SETTINGS
+            Screen.ABOUT, Screen.BACKUP -> Screen.SETTINGS
             Screen.HOME -> Screen.HOME
         }
     }
@@ -180,6 +185,10 @@ fun QuotaAppRoot(vm: QuotaViewModel) {
                     Screen.SETTINGS -> {
                         title = stringResource(R.string.title_settings)
                         back = { screen = Screen.HOME }
+                    }
+                    Screen.BACKUP -> {
+                        title = stringResource(R.string.title_backup)
+                        back = { screen = Screen.SETTINGS }
                     }
                     Screen.ABOUT -> {
                         title = stringResource(R.string.title_about)
@@ -212,7 +221,9 @@ fun QuotaAppRoot(vm: QuotaViewModel) {
         ) { padding ->
             // 沉浸式：状态栏与导航栏都不占布局，内容延伸到系统栏之下
             // 底部不再留整块空白：Dock 悬浮在内容之上，由各页面自己把内容底部留白
-            Box(Modifier.fillMaxSize().padding(padding)) {
+            // haze() 会把这块内容额外渲一份进 GraphicsLayer，供 Dock 取模糊拷贝用；
+            // 页面本身的绘制与交互都不受影响（代价是多一个全屏离屏图层）。
+            Box(Modifier.fillMaxSize().haze(dockHaze).padding(padding)) {
                 // 页面切换动效：淡入 + 微位移，方向跟随前进 / 后退
                 AnimatedContent(
                     targetState = screen,
@@ -338,12 +349,17 @@ fun QuotaAppRoot(vm: QuotaViewModel) {
                         settings = state.settings,
                         accounts = state.accounts,
                         onSave = { vm.updateSettings(it) },
+                        onBackup = { screen = Screen.BACKUP },
+                        onAbout = { screen = Screen.ABOUT },
+                        bottomPadding = if (showDock) DockSpace else 0.dp,
+                    )
+
+                    Screen.BACKUP -> BackupScreen(
+                        accounts = state.accounts,
                         onImport = { accounts, settings -> vm.importJson(accounts, settings) },
                         onClear = { vm.clearAccounts() },
-                        onAbout = { screen = Screen.ABOUT },
                         exportJson = { vm.exportPayload() },
                         message = { msg -> vm.emit(msg) },
-                        bottomPadding = if (showDock) DockSpace else 0.dp,
                     )
 
                     Screen.ABOUT -> AboutScreen(
@@ -365,6 +381,7 @@ fun QuotaAppRoot(vm: QuotaViewModel) {
                     .padding(bottom = 10.dp),
             ) {
                 GlassBottomBar(
+                    hazeState = dockHaze,
                     current = when (screen) {
                         Screen.CATALOG -> 1
                         Screen.SETTINGS -> 2

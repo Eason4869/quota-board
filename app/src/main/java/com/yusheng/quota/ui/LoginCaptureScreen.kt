@@ -6,10 +6,14 @@ import android.content.Intent
 import android.graphics.Bitmap
 import android.graphics.Color as AndroidColor
 import android.net.Uri
+import android.net.http.SslError
 import android.os.Message
+import android.util.Log
+import android.view.View
 import android.webkit.ConsoleMessage
 import android.webkit.CookieManager
 import android.webkit.RenderProcessGoneDetail
+import android.webkit.SslErrorHandler
 import android.webkit.WebChromeClient
 import android.webkit.WebResourceError
 import android.webkit.WebResourceRequest
@@ -19,6 +23,8 @@ import android.webkit.WebView
 import android.webkit.WebViewClient
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -52,6 +58,7 @@ import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableIntStateOf
@@ -61,8 +68,10 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -71,7 +80,19 @@ import androidx.webkit.WebSettingsCompat
 import androidx.webkit.WebViewFeature
 import com.yusheng.quota.BuildConfig
 import com.yusheng.quota.R
+import kotlinx.coroutines.delay
 import org.json.JSONObject
+
+/** logcat 统一用这个 tag 过滤：`adb logcat -s QuotaLogin` */
+private const val TAG = "QuotaLogin"
+
+/**
+ * 加载看门狗：这么多毫秒内 WebView 一次回调都没有，就判定「既没开始加载也没报错」。
+ *
+ * 存在的理由：站点不可达（DNS 被墙、连接被静默丢弃）时 `WebViewClient` 的**任何**回调都不触发，
+ * 页面就是一片空白、一行提示都没有 —— 用户看到的就是「打不开，也没说为什么」。
+ */
+private const val LOAD_WATCHDOG_MS = 10_000L
 
 /** 手机 UA：去掉系统 WebView 的 `wv` 标记，站点才会给出可登录的移动页 */
 private const val MOBILE_UA =
@@ -117,6 +138,15 @@ fun LoginCaptureScreen(
         }.getOrNull()
     }
     var consoleError by remember { mutableStateOf("") }
+    /** 每发起一次新加载 +1，用来重启看门狗（刷新 / 切桌面版 / 重建 WebView 都算新一轮） */
+    var loadGen by remember { mutableIntStateOf(0) }
+    /** 本轮加载是否**收到过任何** WebView 回调：全程为 false = 站点没响应 */
+    var responded by remember { mutableStateOf(false) }
+    var noResponse by remember { mutableStateOf(false) }
+    var sslFailed by remember { mutableStateOf(false) }
+    /** new WebView(ctx) 失败的原因（系统 WebView 被禁用等） */
+    var setupError by remember { mutableStateOf("") }
+    var diagCopied by remember { mutableStateOf(false) }
 
     val loggedInText = stringResource(R.string.login_state_logged_in)
     val notLoggedInText = stringResource(R.string.login_state_unknown)
@@ -128,9 +158,28 @@ fun LoginCaptureScreen(
     val fitText = stringResource(R.string.login_fit_width)
     val blankHint = stringResource(R.string.login_blank_hint)
     val webViewMissing = stringResource(R.string.login_webview_missing)
+    val sslErrorText = stringResource(R.string.login_ssl_error)
+    val noResponseText = stringResource(R.string.login_no_response, (LOAD_WATCHDOG_MS / 1000).toInt())
+    val diagCopyText = stringResource(R.string.login_diag_copy)
+    val diagCopiedText = stringResource(R.string.login_diag_copied)
     val progressAlpha by animateFloatAsState(if (progress in 1..99) 1f else 0f, label = "loginProgress")
 
     val ctx = LocalContext.current
+    val clipboard = LocalClipboardManager.current
+
+    // 站点不可达时 WebViewClient 一个回调都不给，页面就是纯白且无提示；
+    // 这里到点检查「这一轮有没有任何回调」，没有就明确告诉用户是网络不通。
+    // 注意：这个 effect 里**只读不写**状态（responded 由 startNewLoad 复位），
+    // 否则复位会晚于 onPageStarted，把已经加载成功的页面误判成超时。
+    LaunchedEffect(webViewKey, loadGen) {
+        if (setupError.isNotBlank() || providerInfo == null) return@LaunchedEffect
+        val gen = loadGen
+        delay(LOAD_WATCHDOG_MS)
+        if (loadGen == gen && !responded) {
+            noResponse = true
+            Log.w(TAG, "watchdog: no callback in ${LOAD_WATCHDOG_MS}ms, url=$currentUrl")
+        }
+    }
 
     fun openInBrowser(rawUrl: String?) {
         val target = rawUrl?.takeIf { it.isNotBlank() && it != "about:blank" } ?: startUrl
@@ -175,6 +224,48 @@ fun LoginCaptureScreen(
         }
     }
 
+    /**
+     * 发起一轮新加载（刷新 / 切桌面版）。复位上一轮的判定，并让看门狗重新计时。
+     * `responded = false` 必须在 loadUrl/reload **之前**同步做掉，见上面 effect 的注释。
+     */
+    fun startNewLoad(wv: WebView, reload: Boolean) {
+        responded = false
+        noResponse = false
+        sslFailed = false
+        status = ""
+        if (reload) wv.reload() else wv.loadUrl(currentUrl.ifBlank { startUrl })
+        loadGen += 1
+        Log.i(TAG, "load start (reload=$reload) url=${currentUrl.ifBlank { startUrl }}")
+    }
+
+    /** 诊断信息：让用户直接复制出来贴进 issue，字段名保持英文，不随语言变 */
+    fun diagnostics(): String = buildString {
+        append("app=").append(BuildConfig.VERSION_NAME)
+        append("\nandroid=").append(android.os.Build.VERSION.SDK_INT)
+        append("\nwebview=").append(providerInfo ?: "missing")
+        append("\nurl=").append(currentUrl)
+        append("\nstatus=").append(status.ifBlank { "-" })
+        append("\nssl_error=").append(if (sslFailed) "yes" else "no")
+        append("\nno_response=").append(if (noResponse) "yes" else "no")
+        append("\nsetup_error=").append(setupError.ifBlank { "-" })
+        append("\nconsole=").append(consoleError.ifBlank { "-" })
+    }
+
+    fun copyDiagnostics() {
+        val text = diagnostics()
+        Log.i(TAG, text.replace('\n', ' '))
+        clipboard.setText(AnnotatedString(text))
+        diagCopied = true
+    }
+
+    // 「已复制」提示两秒后自动消失，不影响下一轮操作
+    LaunchedEffect(diagCopied) {
+        if (diagCopied) {
+            delay(2000)
+            diagCopied = false
+        }
+    }
+
     // 返回键先走网页历史，退无可退再关闭登录页
     BackHandler {
         val wv = webView.value
@@ -199,7 +290,7 @@ fun LoginCaptureScreen(
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 }
-                IconButton(onClick = { webView.value?.reload() }) {
+                IconButton(onClick = { webView.value?.let { startNewLoad(it, reload = true) } }) {
                     Icon(Icons.Default.Refresh, contentDescription = stringResource(R.string.action_refresh))
                 }
                 IconButton(onClick = { immersive = true }) {
@@ -222,7 +313,20 @@ fun LoginCaptureScreen(
             key(webViewKey) {
                 AndroidView(
                     factory = { context ->
-                        WebView(context).apply {
+                        // 系统 WebView 被禁用/损坏时构造函数**直接抛异常**（不是返回 null）。
+                        // 不接住就是一次崩溃，用户只会觉得「应用坏了」，还不如给个空 View + 原因。
+                        // 这里在组合期，直接写 state 会打断当前组合，所以 post 到下一帧再写。
+                        val created = try {
+                            WebView(context)
+                        } catch (e: Throwable) {
+                            Log.e(TAG, "WebView create failed", e)
+                            val placeholder = View(context)
+                            placeholder.post {
+                                setupError = e.message?.take(160) ?: e.javaClass.simpleName
+                            }
+                            return@AndroidView placeholder
+                        }
+                        created.apply {
                             settings.javaScriptEnabled = true
                             settings.domStorageEnabled = true
                             settings.loadWithOverviewMode = true
@@ -284,6 +388,8 @@ fun LoginCaptureScreen(
                                 override fun onPageStarted(view: WebView?, url: String?, favicon: Bitmap?) {
                                     if (url != null) currentUrl = url
                                     progress = 10
+                                    responded = true
+                                    Log.i(TAG, "onPageStarted $url")
                                 }
 
                                 override fun onPageFinished(view: WebView?, url: String?) {
@@ -309,8 +415,27 @@ fun LoginCaptureScreen(
                                     error: WebResourceError?,
                                 ) {
                                     if (request?.isForMainFrame == true) {
+                                        responded = true
                                         status = error?.description?.toString() ?: fetchFailedText
+                                        Log.w(TAG, "onReceivedError ${error?.errorCode}: $status")
                                     }
+                                }
+
+                                /**
+                                 * 证书校验失败。**默认实现就是静默取消加载** —— 页面停在空白，
+                                 * 一个字的提示都没有，用户看到的就是「打不开」。
+                                 * 这里必须显式 cancel()：绝不能为了让它能打开就 proceed()，
+                                 * 那等于关掉证书校验，等于把中间人攻击当正常路径。
+                                 */
+                                override fun onReceivedSslError(
+                                    view: WebView?,
+                                    handler: SslErrorHandler?,
+                                    error: SslError?,
+                                ) {
+                                    handler?.cancel()
+                                    sslFailed = true
+                                    responded = true
+                                    Log.e(TAG, "onReceivedSslError primary=${error?.primaryError} url=${error?.url}")
                                 }
 
                                 override fun onReceivedHttpError(
@@ -319,7 +444,9 @@ fun LoginCaptureScreen(
                                     errorResponse: WebResourceResponse?,
                                 ) {
                                     if (request?.isForMainFrame == true) {
+                                        responded = true
                                         status = "HTTP ${errorResponse?.statusCode ?: 0}"
+                                        Log.w(TAG, "onReceivedHttpError $status")
                                     }
                                 }
 
@@ -328,11 +455,13 @@ fun LoginCaptureScreen(
                                     view: WebView?,
                                     detail: RenderProcessGoneDetail?,
                                 ): Boolean {
+                                    Log.e(TAG, "onRenderProcessGone didCrash=${detail?.didCrash()}")
                                     val back = view?.url ?: currentUrl
                                     runCatching { view?.destroy() }
                                     webView.value = null
                                     webViewKey += 1
                                     currentUrl = back
+                                    responded = false
                                     return true
                                 }
 
@@ -365,13 +494,39 @@ fun LoginCaptureScreen(
                     // 只从组合里移除不会释放，每次登录都会漏一个。
                     // 这里不调 loadUrl（实例可能已被 onRenderProcessGone 销毁过，对已销毁的
                     // WebView 调任何方法行为都未定义）。
-                    onRelease = { wv ->
-                        runCatching { wv.stopLoading() }
-                        runCatching { wv.destroy() }
-                        if (webView.value === wv) webView.value = null
+                    // 注意类型是 View 不是 WebView：factory 在构造失败时会退成一个空 View
+                    // （见上面的 try/catch），所以这里要 as? 一下，兜底路径才不会被当成 WebView 调
+                    onRelease = { view ->
+                        (view as? WebView)?.let { wv ->
+                            runCatching { wv.stopLoading() }
+                            runCatching { wv.destroy() }
+                            if (webView.value === wv) webView.value = null
+                        }
                     },
                     modifier = Modifier.fillMaxSize(),
                 )
+            }
+
+            // 内核缺失 / 建不起来时盖一层说明。**叠在上面而不是替掉 AndroidView**：
+            // 少一层 if/else 缩进，而且「为什么白屏」永远有人讲 —— 这正是之前缺的东西。
+            if (providerInfo == null || setupError.isNotBlank()) {
+                Box(
+                    Modifier
+                        .matchParentSize()
+                        .background(MaterialTheme.colorScheme.background)
+                        .padding(24.dp),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Text(
+                        text = if (providerInfo == null) {
+                            webViewMissing
+                        } else {
+                            stringResource(R.string.login_setup_failed, setupError)
+                        },
+                        fontSize = 13.sp,
+                        color = MaterialTheme.colorScheme.primary,
+                    )
+                }
             }
         }
 
@@ -406,30 +561,42 @@ fun LoginCaptureScreen(
         } else {
             Column(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 6.dp)) {
                 val isGoogle = currentUrl.contains("accounts.google.com")
+                // 提示的取值顺序 = 排查顺序：先说清自己这边的问题（内核/构造失败），
+                // 再说页面报的错（HTTP/网络），最后才是「没响应」和常规登录提示。
+                val needsAttention = providerInfo == null || setupError.isNotBlank() ||
+                    sslFailed || noResponse || isGoogle
                 Text(
                     text = when {
                         providerInfo == null -> webViewMissing
+                        setupError.isNotBlank() -> stringResource(R.string.login_setup_failed, setupError)
                         status.isNotBlank() -> status
+                        sslFailed -> sslErrorText
+                        noResponse -> noResponseText
                         isGoogle -> googleBlockedText
                         cookie.isNotBlank() -> loggedInText
                         else -> notLoggedInText
                     },
                     fontSize = 11.sp,
-                    color = if (providerInfo == null || isGoogle) MaterialTheme.colorScheme.primary
+                    color = if (needsAttention) MaterialTheme.colorScheme.primary
                     else MaterialTheme.colorScheme.onSurfaceVariant,
-                    maxLines = 2,
+                    maxLines = 4,
                     overflow = TextOverflow.Ellipsis,
                 )
                 if (providerInfo != null) {
+                    // 点这行复制诊断信息（WebView 版本 / 地址 / 错误），装机上出问题直接贴出来
                     Text(
                         buildString {
                             append("WebView: $providerInfo")
                             if (consoleError.isNotBlank()) append(" · JS: $consoleError")
+                            append(" · ")
+                            append(if (diagCopied) diagCopiedText else diagCopyText)
                         },
                         fontSize = 9.sp,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
+                        color = if (diagCopied) MaterialTheme.colorScheme.primary
+                        else MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.fillMaxWidth().clickable { copyDiagnostics() },
                     )
                 }
                 Spacer(Modifier.height(6.dp))
@@ -456,7 +623,7 @@ fun LoginCaptureScreen(
                             desktopMode = !desktopMode
                             webView.value?.let { wv ->
                                 wv.settings.userAgentString = if (desktopMode) DESKTOP_UA else MOBILE_UA
-                                wv.reload()
+                                startNewLoad(wv, reload = true)
                             }
                         },
                     )

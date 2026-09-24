@@ -319,11 +319,8 @@ fun SettingsScreen(
     settings: Settings,
     accounts: List<Account>,
     onSave: (Settings) -> Unit,
-    onImport: (List<Account>, Settings) -> Unit,
-    onClear: () -> Unit,
+    onBackup: () -> Unit,
     onAbout: () -> Unit,
-    exportJson: () -> String,
-    message: (String) -> Unit,
     bottomPadding: Dp = 0.dp,
 ) {
     // 设置项改动即生效，不需要手动保存；文本输入框保留本地文本，避免边输入边被格式化
@@ -333,14 +330,6 @@ fun SettingsScreen(
     var timeoutText by remember(settings.timeoutSec) {
         mutableStateOf(settings.timeoutSec.toString())
     }
-    var io by remember { mutableStateOf("") }
-    var confirmClear by remember { mutableStateOf(false) }
-    val clipboard = LocalClipboardManager.current
-
-    val exportedMsg = stringResource(R.string.toast_exported)
-    val importedMsg = stringResource(R.string.toast_imported)
-    val badJsonMsg = stringResource(R.string.toast_import_failed)
-    val clearedMsg = stringResource(R.string.toast_cleared)
 
     Column(
         Modifier
@@ -430,10 +419,64 @@ fun SettingsScreen(
             }
         }
 
+        // 导出/导入挪去了二级页「备份与恢复」，这里只留一个入口
+        SectionCard {
+            Row(
+                Modifier.fillMaxWidth().clickable { onBackup() },
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(stringResource(R.string.title_backup), fontSize = 15.sp, fontWeight = FontWeight.Medium, color = MaterialTheme.colorScheme.onSurface)
+                Text(stringResource(R.string.dash_accounts, accounts.size), fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+        }
+
+        SectionCard {
+            Row(
+                Modifier.fillMaxWidth().clickable { onAbout() },
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(stringResource(R.string.title_about), fontSize = 15.sp, fontWeight = FontWeight.Medium, color = MaterialTheme.colorScheme.onSurface)
+                Text("v${BuildConfig.VERSION_NAME}", fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+        }
+    }
+}
+
+// ── 备份与恢复（设置的二级页）─────────────────────────────
+/**
+ * 原「设置」页里的数据块，整体搬到这里，避免误触「清空账户」。
+ * 没有底部 Dock，所以不需要 bottomPadding。
+ */
+@Composable
+fun BackupScreen(
+    accounts: List<Account>,
+    onImport: (List<Account>, Settings) -> Unit,
+    onClear: () -> Unit,
+    exportJson: () -> String,
+    message: (String) -> Unit,
+) {
+    var io by remember { mutableStateOf("") }
+    var confirmClear by remember { mutableStateOf(false) }
+    val clipboard = LocalClipboardManager.current
+
+    val exportedMsg = stringResource(R.string.toast_exported)
+    val importedMsg = stringResource(R.string.toast_imported)
+    val badJsonMsg = stringResource(R.string.toast_import_failed)
+    val clearedMsg = stringResource(R.string.toast_cleared)
+
+    Column(
+        Modifier
+            .fillMaxSize()
+            .verticalScroll(rememberScrollState())
+            .padding(start = 16.dp, end = 16.dp, top = 16.dp, bottom = 16.dp),
+        verticalArrangement = Arrangement.spacedBy(10.dp),
+    ) {
         SectionCard {
             Column {
                 Text(
-                    stringResource(R.string.title_data) + " · " + stringResource(R.string.dash_accounts, accounts.size),
+                    stringResource(R.string.title_backup) + " · " + stringResource(R.string.dash_accounts, accounts.size),
                     fontSize = 14.sp,
                     fontWeight = FontWeight.SemiBold,
                     color = MaterialTheme.colorScheme.onSurface,
@@ -476,17 +519,6 @@ fun SettingsScreen(
                 ) {
                     Text(stringResource(R.string.action_clear), color = Color(0xFFFF5A6E))
                 }
-            }
-        }
-
-        SectionCard {
-            Row(
-                Modifier.fillMaxWidth().clickable { onAbout() },
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Text(stringResource(R.string.title_about), fontSize = 15.sp, fontWeight = FontWeight.Medium, color = MaterialTheme.colorScheme.onSurface)
-                Text("v${BuildConfig.VERSION_NAME}", fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
         }
     }

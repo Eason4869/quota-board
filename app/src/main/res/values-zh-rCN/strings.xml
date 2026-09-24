@@ -20,7 +20,7 @@
     <string name="title_add">添加账户</string>
     <string name="title_settings">设置</string>
     <string name="title_about">关于</string>
-    <string name="title_data">数据</string>
+    <string name="title_backup">备份与恢复</string>
 
     <!-- Home -->
     <string name="empty_title">还没有账户</string>
@@ -148,6 +148,11 @@
     <string name="login_exit_fullscreen">退出全屏</string>
     <string name="login_blank_hint">页面内容为空：可试「适应宽度」或「桌面版」；若仍不行，请用浏览器登录后把 Cookie 粘贴到账户配置里。</string>
     <string name="login_webview_missing">系统 WebView 缺失或被禁用：请更新/启用「Android System WebView」，或改用浏览器登录后粘贴 Cookie。</string>
+    <string name="login_ssl_error">证书校验失败：当前网络里可能有拦截 HTTPS 的代理或安全软件。请换一个网络（例如用流量）重试，或改用浏览器登录后把 Cookie 粘贴到账户配置里。</string>
+    <string name="login_no_response">%1$d 秒内页面没有任何响应（既没开始加载，也没有报错）。这个站点在当前网络下可能不可达，建议换网络，或改用浏览器登录后粘贴 Cookie。</string>
+    <string name="login_setup_failed">无法创建内置浏览器：%1$s</string>
+    <string name="login_diag_copy">复制诊断信息</string>
+    <string name="login_diag_copied">诊断信息已复制</string>
     <string name="action_paste">粘贴</string>
 
     <string name="toast_query_ok">查询成功</string>

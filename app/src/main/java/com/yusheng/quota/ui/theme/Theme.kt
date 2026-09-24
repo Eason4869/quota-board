@@ -62,7 +62,10 @@ val PeriodColors = listOf(
 
 /**
  * 液态玻璃材质：半透明表面 + 顶部高光 + 高光描边。
- * Android 无系统 backdrop blur，用「上亮下暗 + 白描边」近似苹果 Liquid Glass。
+ *
+ * 卡片走「上亮下暗 + 白描边」近似苹果 Liquid Glass —— Android 没有系统级的 backdrop
+ * blur 接口，卡片这层做不了真模糊。Dock 例外：它有真正的背景模糊，走 Haze，
+ * 见 ui/Components.kt 的 GlassBottomBar。
  */
 object Glass {
     @Composable
@@ -113,50 +116,56 @@ object Glass {
         }
 
     /**
-     * Dock 专用玻璃填充：比卡片更通透（浅色下也不发白成一块），
-     * 顶部略亮、底部略暗，模拟玻璃的厚度。
+     * Dock 顶部高光：叠在 Haze 磨砂底之上的一道内高光，模拟玻璃的厚度。
      *
-     * 注意：下面三个「dock*」成员与 highlight()/stroke() 是**分开的两套**。
-     * Dock 的高光是叠在填充之上的，调通透度时必须两个一起降；
-     * 卡片用的是另一套，别混用，否则调 Dock 会连带把卡片也改掉。
+     * 注意：下面几个「dock*」成员与 highlight()/stroke() 是**分开的两套** ——
+     * 卡片用后者，Dock 用前者，别混用，否则调 Dock 会连带把卡片也改掉。
      */
-    @Composable
-    fun dockFill(): Brush =
-        if (isDark()) {
-            Brush.verticalGradient(
-                0f to Color.White.copy(alpha = 0.075f),
-                0.5f to Color.White.copy(alpha = 0.048f),
-                1f to Color.White.copy(alpha = 0.030f),
-            )
-        } else {
-            Brush.verticalGradient(
-                0f to Color.White.copy(alpha = 0.30f),
-                0.5f to Color.White.copy(alpha = 0.20f),
-                1f to Color.White.copy(alpha = 0.14f),
-            )
-        }
-
-    /** Dock 顶部高光：Dock 专用，比卡片那套弱一档，避免和 dockFill 叠加后发白 */
     @Composable
     fun dockHighlight(): Brush =
         if (isDark()) {
             Brush.verticalGradient(
-                0f to Color.White.copy(alpha = 0.12f),
-                0.45f to Color.White.copy(alpha = 0.03f),
+                0f to Color.White.copy(alpha = 0.09f),
+                0.45f to Color.White.copy(alpha = 0.02f),
                 1f to Color.Transparent,
             )
         } else {
             Brush.verticalGradient(
-                0f to Color.White.copy(alpha = 0.26f),
-                0.45f to Color.White.copy(alpha = 0.06f),
+                0f to Color.White.copy(alpha = 0.16f),
+                0.45f to Color.White.copy(alpha = 0.04f),
                 1f to Color.Transparent,
             )
         }
 
-    /** Dock 描边：比卡片更细软，浅色下不再是一圈实白（那会显得像塑料而不是玻璃） */
+    /**
+     * Dock 描边：**上亮下透的渐变**，不是一圈等亮的实边。
+     *
+     * 等亮描边在顶部被高光压着看不出来，底部那一段却会孤零零地浮在填充上，
+     * 看上去就是「胶囊底部有一条不明显的长条」。
+     */
     @Composable
-    fun dockStroke(): Color =
-        if (isDark()) Color.White.copy(alpha = 0.16f) else Color.White.copy(alpha = 0.50f)
+    fun dockStrokeBrush(): Brush =
+        if (isDark()) {
+            Brush.verticalGradient(
+                0f to Color.White.copy(alpha = 0.22f),
+                0.5f to Color.White.copy(alpha = 0.10f),
+                1f to Color.White.copy(alpha = 0.04f),
+            )
+        } else {
+            Brush.verticalGradient(
+                0f to Color.White.copy(alpha = 0.85f),
+                0.5f to Color.White.copy(alpha = 0.40f),
+                1f to Color.White.copy(alpha = 0.16f),
+            )
+        }
+
+    /**
+     * API < 32 上没有任何可用的模糊路径，Haze 会退回「色纱」兜底（[HazeStyle.fallbackTint]）。
+     * 这里给接近不透明的表面色，免得老系统上 Dock 从磨砂玻璃突然变成一块几乎透明的板子。
+     */
+    @Composable
+    fun dockScrim(): Color =
+        if (isDark()) Color(0xFF141A22).copy(alpha = 0.88f) else Color(0xFFFFFFFF).copy(alpha = 0.84f)
 
     private fun Color.luminance(): Float = (0.299f * red + 0.587f * green + 0.114f * blue)
 }

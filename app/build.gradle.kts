@@ -50,8 +50,8 @@ android {
         applicationId = "com.yusheng.quota"
         minSdk = 26
         targetSdk = 35
-        versionCode = 13
-        versionName = "1.2.13"
+        versionCode = 14
+        versionName = "1.2.14"
         resourceConfigurations += listOf("en", "zh-rCN")
     }
 
@@ -107,6 +107,15 @@ dependencies {
     implementation("androidx.activity:activity-compose:1.9.2")
     // WebView 能力扩展：关闭「算法暗色」（会把不支持的站点整页刷成黑色）
     implementation("androidx.webkit:webkit:1.12.1")
+
+    // Dock 的背景模糊。Android 没有系统级的 backdrop blur 接口，Haze 的做法是
+    // 把背后内容先渲进一个 GraphicsLayer 再对那份拷贝做 RenderEffect 模糊。
+    // 版本**故意钉在 1.1.1**：它是最后一个用 Kotlin 2.0.21 + Compose UI 1.7.x 编出来的，
+    // 与本工程的 Kotlin 2.0.21 完全对齐；1.2.0 起改用 Kotlin 2.1 编，
+    // 而 Kotlin 2.0 的编译器读不了 2.1 的元数据（会直接编译失败）。
+    // 真要升 Haze，就必须先把 Kotlin 与 Compose BOM 一起升上去。
+    implementation("dev.chrisbanes.haze:haze:1.1.1")
+    implementation("dev.chrisbanes.haze:haze-materials:1.1.1")
 
     val composeBom = platform("androidx.compose:compose-bom:2024.09.03")
     implementation(composeBom)

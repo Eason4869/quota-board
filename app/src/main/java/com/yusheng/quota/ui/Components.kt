@@ -31,8 +31,11 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.drawOutline
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
@@ -45,6 +48,11 @@ import com.yusheng.quota.R
 import com.yusheng.quota.data.Period
 import com.yusheng.quota.ui.theme.Glass
 import com.yusheng.quota.ui.theme.PeriodColors
+import dev.chrisbanes.haze.HazeState
+import dev.chrisbanes.haze.HazeTint
+import dev.chrisbanes.haze.hazeChild
+import dev.chrisbanes.haze.materials.ExperimentalHazeMaterialsApi
+import dev.chrisbanes.haze.materials.HazeMaterials
 import kotlin.math.roundToInt
 
 
@@ -73,18 +81,42 @@ fun logoResFor(templateId: String): Int = when (templateId) {
 /** Dock 占屏宽的比例：1f = 满屏。想再调长短**只改这一个数**即可 */
 private const val DockWidthFraction = 0.8f
 
+/** Dock 的模糊半径：越大磨砂越重（24dp 大致相当于 iOS 的 regular 档） */
+private val DockBlurRadius = 24.dp
+
 /**
  * 液态玻璃 Dock：只有胶囊本体有材质与描边，**四周完全透明**，
  * 页面内容可以从下方穿过（配合调用方的底部内边距，不会被挡）。
+ *
+ * 模糊走 Haze：调用方在**页面内容**上挂 `Modifier.haze(state)`，这里用 `hazeChild(state)`
+ * 把那份内容的一份模糊拷贝画进胶囊里。注意 Android 上真模糊要求 **API 32+**
+ * （Haze 内部的 isBlurEnabledByDefault 就是这么判的），31 及以下会退回 dockScrim() 色纱。
  */
+@OptIn(ExperimentalHazeMaterialsApi::class)
 @Composable
-fun GlassBottomBar(current: Int, onSelect: (Int) -> Unit) {
+fun GlassBottomBar(
+    hazeState: HazeState,
+    current: Int,
+    onSelect: (Int) -> Unit,
+) {
     val items = listOf(
         Triple(Icons.Default.Home, stringResource(R.string.nav_home), 0),
         Triple(Icons.Default.Add, stringResource(R.string.nav_add), 1),
         Triple(Icons.Default.Settings, stringResource(R.string.nav_settings), 2),
     )
     val shape = RoundedCornerShape(26.dp)
+    // 在组合期取好画笔：drawBehind 的 lambda 不是 @Composable，里面不能再调 Glass.xxx()
+    val rimBrush = Glass.dockStrokeBrush()
+    // 底色要够实：Haze 把模糊影像叠在这层之上，底色太透就会和背后的原始内容重影。
+    // 想更透 / 更实就把 ultraThin 换成 thin / regular / thick。
+    val haze = HazeMaterials
+        .ultraThin(containerColor = MaterialTheme.colorScheme.surface)
+        .copy(
+            blurRadius = DockBlurRadius,
+            noiseFactor = 0.04f,
+            // API 31 及以下没有模糊路径，用这层色纱兜底
+            fallbackTint = HazeTint(Glass.dockScrim()),
+        )
     Box(
         Modifier
             // 原来这里是 widthIn(min = 180.dp)，但那只设了**下限**：里面的
@@ -92,18 +124,31 @@ fun GlassBottomBar(current: Int, onSelect: (Int) -> Unit) {
             // Dock 实际是接近满屏宽的。要「短 20%」得按屏宽比例来
             .fillMaxWidth(DockWidthFraction)
             .shadow(
-                elevation = 10.dp,
+                elevation = 8.dp,
                 shape = shape,
                 clip = false,
-                ambientColor = Color.Black.copy(alpha = 0.10f),
-                spotColor = Color.Black.copy(alpha = 0.16f),
+                ambientColor = Color.Black.copy(alpha = 0.07f),
+                spotColor = Color.Black.copy(alpha = 0.13f),
             )
             .clip(shape)
-            .background(Glass.dockFill()),
+            .hazeChild(state = hazeState, style = haze),
     ) {
-        // 玻璃质感：顶部高光渐变 + 高光描边（只覆盖胶囊本体，不铺满屏幕）
+        // 玻璃质感：顶部高光渐变 + 描边（只覆盖胶囊本体，不铺满屏幕）
         Box(Modifier.matchParentSize().background(Glass.dockHighlight()))
-        Box(Modifier.matchParentSize().border(1.dp, Glass.dockStroke(), shape))
+        // 描边用 drawBehind 画而不是 Modifier.border：border 只吃纯色，这里要一条
+        // **上亮下透**的渐变边。原来是一圈等亮的 white 0.5 —— 顶部有高光压着看不出来，
+        // 底部那条就孤零零浮在近乎透明的填充上，看着就是「胶囊底部有一条不明显的长条」。
+        Box(
+            Modifier
+                .matchParentSize()
+                .drawBehind {
+                    drawOutline(
+                        outline = shape.createOutline(size, layoutDirection, this),
+                        brush = rimBrush,
+                        style = Stroke(width = 1.dp.toPx()),
+                    )
+                },
+        )
         Row(
             modifier = Modifier
                 .fillMaxWidth()
