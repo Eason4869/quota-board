@@ -211,12 +211,7 @@ class QueryEngine(private val context: Context) {
         require(cfg.cookie.isNotBlank()) {
             context.getString(R.string.err_mimo_need_login, MimoEndpoints.REQUIRED_COOKIES)
         }
-        return MimoEndpoints.fetch(cfg.cookie) { url, cookie ->
-            val body = requestJson(
-                "GET", url, loginHeaders(cfg.copy(cookie = cookie)), "", timeoutSec, QueryMode.LOGIN,
-            )
-            PageFetch.Fetched(url, 200, body.toString())
-        }
+        return MimoLoginSession().use { it.quota(cfg.cookie, timeoutSec) }
     }
 
     // ── 火山 AK/SK 签名查询 ────────────────────────────────

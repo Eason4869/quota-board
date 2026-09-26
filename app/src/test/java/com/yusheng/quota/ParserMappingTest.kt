@@ -13,6 +13,18 @@ import org.robolectric.annotation.Config
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [28])
 class ParserMappingTest {
+    @Test fun mimoShowsPlanAndBalanceTogetherAndMarksPartialResults() {
+        val json = JSONObject("""{"mimo":{"usage":{"code":0,"data":{"monthUsage":{"items":[{"name":"month_total_token","used":25,"limit":100}]}}},"balance":{"code":0,"data":{"balance":12.5,"cashBalance":10,"giftBalance":2.5}},"unavailable":["detail"]}}""")
+        val result = Parsers.parse("xiaomi", json, "", "", RuntimeEnvironment.getApplication())
+        assertEquals(12.5, result.balance!!.amount, 0.0)
+        assertEquals(75.0, result.subscription!!.remaining!!, 0.0)
+        assertEquals(25.0, result.periods.single().used!!, 0.0)
+        assertTrue(result.extras.any { it.value.contains("Plan details") })
+        json.getJSONObject("mimo").remove("usage")
+        val balanceOnly = Parsers.parse("xiaomi", json, "", "", RuntimeEnvironment.getApplication())
+        assertEquals(12.5, balanceOnly.balance!!.amount, 0.0)
+        assertNull(balanceOnly.subscription)
+    }
     @Test fun explicitMappingsOverrideBuiltInValuesAndPreserveMetadata() {
         val result = Parsers.parse("openrouter",
             JSONObject("""{"data":{"total_credits":100,"total_usage":20,"customBalance":7,"customRemaining":9}}"""),

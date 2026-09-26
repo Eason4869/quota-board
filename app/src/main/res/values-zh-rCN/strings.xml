@@ -221,7 +221,24 @@
     <string name="hint_qianwen_key">填千问 AI 平台（platform.qianwenai.com）Token Plan 的 Key；网关是 token-plan.maas.qianwenaiapi.com。</string>
     <string name="hint_moonshot_key">填 Moonshot 开放平台（platform.moonshot.cn）的 API Key。</string>
     <string name="hint_copilot_token">填有 Copilot 权限的 GitHub OAuth token（`gh auth token` 即可拿到）。</string>
-    <string name="hint_mimo_cookie">小米额度需要登录态；粘贴 Cookie 时必须包含 api-platform_serviceToken 与 userId。点这一行可整段复制。</string>
+    <string name="hint_mimo_cookie">通过系统浏览器或扫码连接 MiMo，同时查询 Token Plan 和按量余额；也可导入包含 api-platform_serviceToken 与 userId 的平台 Cookie。</string>
+    <string name="mimo_connect">连接 MiMo</string>
+    <string name="mimo_back">返回</string>
+    <string name="mimo_intro">连接小米账号，读取 Token Plan 套餐用量和按量余额。</string>
+    <string name="mimo_browser">在浏览器中确认登录</string>
+    <string name="mimo_qr">小米登录二维码</string>
+    <string name="mimo_qr_help">同一台手机：点击上方按钮，在系统浏览器中确认后返回此页。也可用另一台已登录小米账号的设备扫码。</string>
+    <string name="mimo_retry">重新获取登录请求</string>
+    <string name="mimo_waiting">等待小米账号确认… 登录请求约 5 分钟后过期。</string>
+    <string name="mimo_loading">正在验证会话并查询额度…</string>
+    <string name="mimo_failed">连接失败或请求已过期。请重试并在浏览器中批准登录，也可导入有效的平台 Cookie。</string>
+    <string name="mimo_import">导入平台 Cookie</string>
+    <string name="mimo_cookie_help">粘贴已登录 MiMo 平台请求中的 Cookie，需包含 api-platform_serviceToken 和 userId。这里不能使用 API Key 或小米账号密码。</string>
+    <string name="mimo_verify">验证并保存</string>
+    <string name="mimo_usage">Token Plan 用量</string>
+    <string name="mimo_detail">套餐详情</string>
+    <string name="mimo_balance">按量余额</string>
+    <string name="mimo_unavailable">未取到</string>
 
     <string name="err_need_aksk">请填写 AccessKey ID / SecretAccessKey</string>
     <string name="err_need_url">请填写查询 URL</string>

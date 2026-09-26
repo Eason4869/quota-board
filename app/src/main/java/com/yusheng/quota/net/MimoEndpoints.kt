@@ -5,11 +5,10 @@ import java.net.URI
 import kotlinx.coroutines.CancellationException
 
 /**
- * 小米 MiMo（Token Plan）额度接口。
+ * 小米 MiMo Token Plan 与按量余额接口。
  *
- * 关键事实（与 CodexBar / opencode-quota / dsh-cost-meter 等实现一致，我也实测过）：
- *  - 配额只能通过小米账号 **Web SSO 会话**访问，必需 Cookie `api-platform_serviceToken` + `userId`
- *  - `tp-*`（套餐 Key）与 `sk-*`（按量 Key）**都没有额度接口**，只能走登录态
+ *  - 这些控制台接口使用小米账号 SSO 会话，必需 Cookie `api-platform_serviceToken` + `userId`
+ *  - 模型调用的 `tp-*` / `sk-*` Key 不能作为这些接口的会话凭证
  *  - 未登录时三个接口都会返回 `{"code":401,"loginUrl":"https://account.xiaomi.com/pass/serviceLogin?..."}`
  *    —— 这个 loginUrl 就是**权威的登录页**，比猜控制台深链可靠得多
  *  - 统一信封 `{"code":0,"data":{...}}`
@@ -32,20 +31,21 @@ object MimoEndpoints {
     /** 每个账户显式提供自己的 Cookie；不读取 WebView 的全局 CookieJar。 */
     internal fun fetch(cookie: String, request: (String, String) -> PageFetch.Fetched): JSONObject {
         require(cookie.isNotBlank()) { "MiMo: 请登录并保存 Cookie ($REQUIRED_COOKIES)" }
-        val usage = request(USAGE, cookie)
-        check(usage.isOk && !isNotLoggedIn(usage.body)) { "MiMo: 登录已失效，请重新登录" }
-        val results = mutableListOf(usage)
-        for (url in listOf(DETAIL, BALANCE)) {
+        val results = mutableListOf<PageFetch.Fetched>()
+        for (url in ALL) {
             try {
-                val result = request(url, cookie)
-                if (!isNotLoggedIn(result.body)) results += result
+                results += request(url, cookie)
             } catch (e: CancellationException) {
                 throw e
             } catch (_: Exception) {
-                // 详情或余额接口暂不可用时仍保留成功获取的用量。
+                // 套餐与按量余额独立；其中一个不可用不应遮住另一个。
             }
         }
-        return checkNotNull(merge(results)) { "MiMo: 无法解析用量响应" }
+        return checkNotNull(merge(results)) {
+            if (results.any { it.status == 401 || isNotLoggedIn(it.body) })
+                "MiMo: 登录已失效，请重新登录"
+            else "MiMo: 未取得有效的套餐用量或余额，请稍后重试"
+        }
     }
 
     /** 用户填的地址属于 MiMo 时，返回「用量 / 详情 / 余额」三件套；否则 null */
@@ -57,19 +57,28 @@ object MimoEndpoints {
      * `{"mimo":{"usage":<原始回包>,"detail":<原始回包>,"balance":<原始回包>}}`
      */
     fun merge(results: List<PageFetch.Fetched>): JSONObject? {
-        val usage = results.firstOrNull { it.url.contains("tokenPlan/usage") } ?: results.firstOrNull()
-        if (usage == null || !usage.isOk) return null
         val mimo = JSONObject()
-        mimo.put("usage", runCatching { JSONObject(usage.body) }.getOrNull() ?: return null)
-        results.firstOrNull { it.url.contains("tokenPlan/detail") && it.isOk }
-            ?.let { r -> runCatching { JSONObject(r.body) }.getOrNull()?.let { mimo.put("detail", it) } }
-        results.firstOrNull { it.url.contains("/balance") && it.isOk }
-            ?.let { r -> runCatching { JSONObject(r.body) }.getOrNull()?.let { mimo.put("balance", it) } }
+        val unavailable = org.json.JSONArray()
+        for ((url, key) in listOf(USAGE to "usage", DETAIL to "detail", BALANCE to "balance")) {
+            val result = results.firstOrNull { it.url == url && it.isOk }
+            val body = result?.let { runCatching { JSONObject(it.body) }.getOrNull() }
+            if (body != null && body.optInt("code", -1) == 0 && (body.optJSONObject("data")?.length() ?: 0) > 0 &&
+                !isNotLoggedIn(result.body)) mimo.put(key, body)
+            else unavailable.put(key)
+        }
+        if (!mimo.has("usage") && !mimo.has("balance")) return null
+        if (unavailable.length() > 0) mimo.put("unavailable", unavailable)
         return JSONObject().put("mimo", mimo)
     }
 
-    /** 平台域 Cookie 里是否已有登录会话（`api-platform_serviceToken` 出现 = 登录完成） */
-    fun hasSession(cookie: String): Boolean = cookie.contains("api-platform_serviceToken")
+    /** Cookie 名必须精确匹配；字符串中提到名称并不代表已取得凭证。 */
+    fun hasSession(cookie: String): Boolean {
+        val names = cookie.split(';').mapNotNull {
+            val pair = it.trim().split('=', limit = 2)
+            pair.first().takeIf { pair.size == 2 && pair[1].trim().trim('"').isNotBlank() }
+        }.toSet()
+        return names.containsAll(listOf("api-platform_serviceToken", "userId"))
+    }
 
     /** 回包里是不是「未登录」 */
     fun isNotLoggedIn(body: String): Boolean =

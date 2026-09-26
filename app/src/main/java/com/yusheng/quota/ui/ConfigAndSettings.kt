@@ -180,7 +180,7 @@ fun ConfigScreen(
                             modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
                             enabled = cfg.loginUrl.isNotBlank() || cfg.url.isNotBlank(),
                         ) { Text(stringResource(R.string.action_login_fetch)) }
-                        Hint(stringResource(R.string.hint_login))
+                        Hint(stringResource(if (com.yusheng.quota.net.MimoEndpoints.isMimo(cfg.url)) R.string.hint_mimo_cookie else R.string.hint_login))
                     }
 
                     QueryMode.WEBHOOK -> {
@@ -283,7 +283,7 @@ private fun Hint(text: String) {
  * 可以直接从浏览器/密码管理器把 Cookie 或 Key 粘进来。
  */
 @Composable
-private fun SecretField(
+internal fun SecretField(
     label: String,
     value: String,
     onChange: (String) -> Unit,

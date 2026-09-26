@@ -40,7 +40,7 @@ object Parsers {
             "novita" -> novita(json)
             "moonshot" -> moonshot(json)
             "copilot" -> copilot(json)
-            "xiaomi" -> mimo(json)
+            "xiaomi" -> mimo(json, context)
             "qianwen" -> qianwen(json)
             "kimi" -> kimi(json)
             "zhipu" -> zhipu(json, context)
@@ -209,7 +209,7 @@ object Parsers {
      *   detail  → `data.planName` / `planCode` / `expired`（重置时刻也在这里）
      *   balance → `data.balance` / `cashBalance` / `giftBalance`
      */
-    private fun mimo(j: JSONObject): QueryResult {
+    private fun mimo(j: JSONObject, context: Context): QueryResult {
         val root = j.optJSONObject("mimo") ?: j
         val usage = root.optJSONObject("usage")?.optJSONObject("data")
         val detail = root.optJSONObject("detail")?.optJSONObject("data")
@@ -261,6 +261,16 @@ object Parsers {
             },
             periods = periods,
             extras = buildList {
+                root.optJSONArray("unavailable")?.let { missing ->
+                    val labels = (0 until missing.length()).map { index ->
+                        context.getString(when (missing.optString(index)) {
+                            "usage" -> R.string.mimo_usage
+                            "detail" -> R.string.mimo_detail
+                            else -> R.string.mimo_balance
+                        })
+                    }
+                    add(Extra(context.getString(R.string.mimo_unavailable), labels.joinToString(" / ")))
+                }
                 expired?.let { add(Extra("expired", it)) }
                 num(balance, "cashBalance")?.let { add(Extra("cash", fmt(it))) }
                 num(balance, "giftBalance")?.let { add(Extra("gift", fmt(it))) }

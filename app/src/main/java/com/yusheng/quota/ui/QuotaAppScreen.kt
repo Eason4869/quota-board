@@ -401,15 +401,18 @@ fun QuotaAppRoot(vm: QuotaViewModel) {
         val loginReq = loginRequest
         if (loginReq != null) {
             Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
-                LoginCaptureScreen(
+                val onCaptured: (String?, String?) -> Unit = { cookie, json ->
+                    loginReq.onResult(cookie, json)
+                    loginRequest = null
+                    vm.emit(ctx.getString(R.string.toast_cookie_captured))
+                }
+                if (com.yusheng.quota.net.MimoEndpoints.isMimo(loginReq.fetchUrl)) {
+                    MimoLoginScreen(onCancel = { loginRequest = null }, onCaptured = onCaptured)
+                } else LoginCaptureScreen(
                     startUrl = loginReq.loginUrl,
                     fetchUrl = loginReq.fetchUrl,
                     onCancel = { loginRequest = null },
-                    onCaptured = { cookie, json ->
-                        loginReq.onResult(cookie, json)
-                        loginRequest = null
-                        vm.emit(ctx.getString(R.string.toast_cookie_captured))
-                    },
+                    onCaptured = onCaptured,
                 )
             }
         }

@@ -227,7 +227,24 @@
     <string name="hint_qianwen_key">Paste the Token Plan key from platform.qianwenai.com (the gateway is token-plan.maas.qianwenaiapi.com).</string>
     <string name="hint_moonshot_key">Paste a Moonshot (platform.moonshot.cn) API key.</string>
     <string name="hint_copilot_token">Paste a GitHub OAuth token with Copilot access (`gh auth token`).</string>
-    <string name="hint_mimo_cookie">MiMo quota needs a signed-in session. A pasted Cookie must contain api-platform_serviceToken and userId. Tap to copy this line.</string>
+    <string name="hint_mimo_cookie">Connect MiMo using your browser or QR approval to query Token Plan and pay-as-you-go balance. You can also import a platform Cookie containing api-platform_serviceToken and userId.</string>
+    <string name="mimo_connect">Connect MiMo</string>
+    <string name="mimo_back">Back</string>
+    <string name="mimo_intro">Connect your Xiaomi account to read Token Plan usage and pay-as-you-go balance.</string>
+    <string name="mimo_browser">Approve in browser</string>
+    <string name="mimo_qr">Xiaomi login QR code</string>
+    <string name="mimo_qr_help">On this phone, approve in your browser, then return here. You can also scan this QR code with a device signed in to your Xiaomi account.</string>
+    <string name="mimo_retry">Get a new login request</string>
+    <string name="mimo_waiting">Waiting for Xiaomi approval… Requests expire after about 5 minutes.</string>
+    <string name="mimo_loading">Verifying session and querying quota…</string>
+    <string name="mimo_failed">Connection failed or expired. Retry and approve the request in your browser, or import a valid platform Cookie.</string>
+    <string name="mimo_import">Import platform Cookie</string>
+    <string name="mimo_cookie_help">Paste the Cookie header from a signed-in MiMo platform request. It must include api-platform_serviceToken and userId. An API key or Xiaomi account password will not work here.</string>
+    <string name="mimo_verify">Verify and save</string>
+    <string name="mimo_usage">Token Plan usage</string>
+    <string name="mimo_detail">Plan details</string>
+    <string name="mimo_balance">Pay-as-you-go balance</string>
+    <string name="mimo_unavailable">Not retrieved</string>
 
     <!-- Query errors -->
     <string name="err_need_aksk">Please fill in AccessKey ID / SecretAccessKey</string>
