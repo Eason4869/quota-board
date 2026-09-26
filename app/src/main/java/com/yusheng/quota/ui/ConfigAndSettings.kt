@@ -308,7 +308,7 @@ private fun SecretField(
  */
 private fun normalizeSecret(raw: String): String {
     var v = raw.trim().replace("\r", "").replace("\n", "")
-    for (prefix in listOf("cookie:", "authorization:", "set-cookie:")) {
+    for (prefix in listOf("cookie:", "authorization:", "set-cookie:", "bearer:")) {
         if (v.startsWith(prefix, ignoreCase = true)) {
             v = v.substring(prefix.length).trim()
             break

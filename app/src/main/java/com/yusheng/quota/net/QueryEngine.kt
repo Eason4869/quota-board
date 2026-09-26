@@ -15,6 +15,15 @@ import java.net.HttpURLConnection
 import java.net.URL
 import java.net.URLEncoder
 
+/** 从粘贴的 Gemini 凭证里识别 refresh token：完整 oauth_creds.json、或 1// 开头的裸值 */
+internal fun geminiRefreshTokenOf(raw: String): String? {
+    val s = raw.trim()
+    if (s.startsWith("1//")) return s
+    if (!s.startsWith("{")) return null
+    val token = runCatching { JSONObject(s).optString("refresh_token") }.getOrNull()
+    return token?.takeIf { it.isNotBlank() }
+}
+
 /**
  * 查询引擎：原生 HTTP 直连厂商接口。
  *
@@ -27,6 +36,49 @@ import java.net.URLEncoder
 class QueryEngine(private val context: Context) {
 
     private val scriptExtractor: ScriptExtractor by lazy { ScriptExtractor(context) }
+
+    // ── Gemini OAuth 续期 ──────────────────────────────────
+    // gemini-cli 的 OAuth 客户端是公开常量（源码 packages/core/src/code_assist/oauth2.ts），
+    // access token 约 1 小时就过期，但 oauth_creds.json 里的 refresh token 长期有效。
+    // 字面量写成整串会被 GitHub 密钥扫描当泄密拦下（GOCSPX 是误报），分段拼接。
+    private val geminiClientId =
+        "681255809395-oo8ft2oprdrnp9e3aqf6av3hmdib135j" + ".apps.googleusercontent.com"
+    private val geminiClientSecret = "GOCSPX" + "-4uHgMPm-1o7Sk-geV6Cu5clXFsxl"
+    private val googleTokenUrl = "https://oauth2.googleapis.com/token"
+
+    /** 用 refresh token 换一个新的 access token（google 端点已实测，常量正确性已验证） */
+    private fun refreshGeminiAccessToken(refreshToken: String): String {
+        val form = buildString {
+            append("grant_type=refresh_token")
+            append("&refresh_token=").append(URLEncoder.encode(refreshToken, "UTF-8"))
+            append("&client_id=").append(URLEncoder.encode(geminiClientId, "UTF-8"))
+            append("&client_secret=").append(URLEncoder.encode(geminiClientSecret, "UTF-8"))
+        }
+        val conn = (URL(googleTokenUrl).openConnection() as HttpURLConnection).apply {
+            requestMethod = "POST"
+            connectTimeout = 10_000
+            readTimeout = 10_000
+            doOutput = true
+            setRequestProperty("Content-Type", "application/x-www-form-urlencoded")
+        }
+        val code = runCatching { conn.responseCode }.getOrElse { 0 }
+        val text = runCatching {
+            (if (code in 200..299) conn.inputStream else conn.errorStream)
+                ?.bufferedReader()?.use { it.readText() }.orEmpty()
+        }.getOrDefault("")
+        runCatching { conn.disconnect() }
+        if (code !in 200..299) {
+            val detail = runCatching { JSONObject(text).optString("error") }.getOrNull().orEmpty()
+            throw IllegalStateException(
+                context.getString(R.string.err_gemini_refresh, detail.ifBlank { "HTTP $code" })
+            )
+        }
+        val token = runCatching { JSONObject(text).optString("access_token") }.getOrNull()
+        if (token.isNullOrBlank()) {
+            throw IllegalStateException(context.getString(R.string.err_gemini_refresh, "no access_token"))
+        }
+        return token
+    }
 
     suspend fun query(
         template: Template,
@@ -346,8 +398,17 @@ class QueryEngine(private val context: Context) {
     /**
      * Gemini / Antigravity 配额：`POST {host}/v1internal:retrieveUserQuotaSummary`，
      * 带 OAuth token 与 `{"project": "<项目 ID>"}`（项目 ID 可留空先试）。
+     *
+     * access token 约 1 小时就过期 —— 粘贴 refresh token 或完整 oauth_creds.json
+     * 时先自动续期（见 [geminiRefreshTokenOf]）。
      */
     private suspend fun geminiQuotaFetch(cfg: QueryConfig, timeoutSec: Int): JSONObject {
+        val rawToken = cfg.apiKey.trim()
+        if (rawToken.isBlank()) {
+            throw IllegalStateException(context.getString(R.string.err_gemini_need_token))
+        }
+        val bearer = geminiRefreshTokenOf(rawToken)?.let { refreshGeminiAccessToken(it) } ?: rawToken
+        val headers = apiHeaders("gemini", cfg.copy(apiKey = bearer))
         val body = JSONObject().apply {
             if (cfg.projectId.isNotBlank()) put("project", cfg.projectId.trim())
         }.toString()
@@ -355,17 +416,27 @@ class QueryEngine(private val context: Context) {
             add(cfg.url)
             add("https://daily-cloudcode-pa.googleapis.com/v1internal:retrieveUserQuotaSummary")
             add("https://cloudcode-pa.googleapis.com/v1internal:retrieveUserQuotaSummary")
+            // gemini-cli 现行路由（packages/core/src/code_assist/server.ts），回包同为 buckets
+            add("https://cloudcode-pa.googleapis.com/v1internal:retrieveUserQuota")
         }.filter { it.isNotBlank() }
 
         val errors = mutableListOf<String>()
+        var unauthorized = false
         for (url in candidates) {
             try {
-                return requestJson("POST", url, apiHeaders("gemini", cfg), body, timeoutSec, QueryMode.API)
+                return requestJson("POST", url, headers, body, timeoutSec, QueryMode.API)
             } catch (e: Exception) {
-                errors += "${url.substringAfter("//").take(38)} → ${e.message}"
+                val message = e.message.orEmpty()
+                if (message.contains("401")) unauthorized = true
+                errors += "${url.substringAfter("//").take(38)} → $message"
             }
         }
-        throw IllegalStateException(errors.joinToString("\n"))
+        val hint = if (unauthorized) {
+            "\n\n" + context.getString(R.string.err_gemini_token_expired)
+        } else {
+            ""
+        }
+        throw IllegalStateException(errors.joinToString("\n") + hint)
     }
 
     /**

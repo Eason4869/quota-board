@@ -201,7 +201,10 @@
     <string name="field_account_id">Account ID</string>
     <string name="hint_claude_token">Paste the Claude Code OAuth token (`claudeAiOauth.accessToken` in ~/.claude/.credentials.json, or the “Claude Code-credentials” keychain item on macOS). No sign-in page needed.</string>
     <string name="hint_codex_token">Paste the Codex CLI access token (tokens.access_token) and account ID (tokens.account_id) from ~/.codex/auth.json. No sign-in page needed.</string>
-    <string name="hint_gemini_token">Paste the Gemini / Antigravity CLI OAuth access token, plus the project ID if you have one. No sign-in page needed.</string>
+    <string name="hint_gemini_token">Paste the Gemini CLI OAuth access token (valid ~1 hour), or the whole ~/.gemini/oauth_creds.json / the refresh_token starting with 1// (auto-renewed). Add the project ID if you have one. No sign-in page needed.</string>
+    <string name="err_gemini_need_token">Paste a Gemini credential first: an access token, the whole ~/.gemini/oauth_creds.json, or a refresh_token starting with 1//.</string>
+    <string name="err_gemini_refresh">Gemini token refresh failed: %1$s. Make sure you pasted the whole oauth_creds.json or a valid refresh_token.</string>
+    <string name="err_gemini_token_expired">Access tokens expire after about 1 hour. Paste the whole ~/.gemini/oauth_creds.json (or its refresh_token starting with 1//) into the token field and the app will renew it automatically.</string>
     <string name="field_wh_fallback">Proxy URL (optional fallback)</string>
     <string name="hint_zhipu_team">Fill both organization and project ID for a Zhipu team plan; leave empty for the personal plan.</string>
     <string name="hint_script_present">A custom extractor is configured. It is used first; the built-in parser takes over automatically if it fails.</string>

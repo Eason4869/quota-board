@@ -1,4 +1,4 @@
-﻿import java.util.Properties
+import java.util.Properties
 
 plugins {
     id("com.android.application")
@@ -50,8 +50,8 @@ android {
         applicationId = "com.yusheng.quota"
         minSdk = 26
         targetSdk = 35
-        versionCode = 30
-        versionName = "1.2.30"
+        versionCode = 31
+        versionName = "1.2.31"
         resourceConfigurations += listOf("en", "zh-rCN")
     }
 
