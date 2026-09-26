@@ -50,8 +50,8 @@ android {
         applicationId = "com.yusheng.quota"
         minSdk = 26
         targetSdk = 35
-        versionCode = 28
-        versionName = "1.2.28"
+        versionCode = 29
+        versionName = "1.2.29"
         resourceConfigurations += listOf("en", "zh-rCN")
     }
 
@@ -94,12 +94,17 @@ android {
         // 关于页用 BuildConfig.VERSION_NAME；AGP 8 起默认关闭，不开会编译失败
         buildConfig = true
     }
+    testOptions.unitTests.isIncludeAndroidResources = true
     packaging {
         resources.excludes += "/META-INF/{AL2.0,LGPL2.1}"
     }
 }
 
 dependencies {
+    testImplementation("junit:junit:4.13.2")
+    testImplementation("org.json:json:20240303")
+    testImplementation("org.robolectric:robolectric:4.14.1")
+    testImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.9.0")
     implementation("androidx.core:core-ktx:1.13.1")
     implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.8.6")
     implementation("androidx.lifecycle:lifecycle-runtime-compose:2.8.6")

@@ -66,6 +66,7 @@ import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -88,6 +89,8 @@ import com.yusheng.quota.data.normalizeLoginUrl
 import com.yusheng.quota.net.MimoEndpoints
 import com.yusheng.quota.net.PageFetch
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
 import org.json.JSONObject
@@ -251,7 +254,7 @@ private fun isLikelyEngineFailure(msg: String): Boolean {
  *
  * 设计要点（都是被真实站点逼出来的）：
  *  1. 登录后从 Cookie Jar 取 Cookie；**在页面内 fetch 额度接口**，同源且自动带登录态，
- *     这是 HttpOnly 会话唯一可行的取数方式
+ *     同时保存查询接口所在域的 Cookie，供后续按账户查询
  *  2. 支持弹窗式登录（`window.open` / `target=_blank`），登录态不丢
  *  3. 「适应宽度」按页面真实宽度重新计算缩放，桌面版控制台不再显示不全
  *  4. 全屏模式把整块屏幕让给网页；渲染进程被回收时自动重建
@@ -273,6 +276,7 @@ fun LoginCaptureScreen(
     var cookie by remember { mutableStateOf("") }
     var progress by remember { mutableIntStateOf(0) }
     var busy by remember { mutableStateOf(false) }
+    val captureScope = rememberCoroutineScope()
     var status by remember { mutableStateOf("") }
     var immersive by remember { mutableStateOf(false) }
     var webViewKey by remember { mutableIntStateOf(0) }
@@ -769,7 +773,7 @@ fun LoginCaptureScreen(
                                     runCatching {
                                         if (url != null) {
                                             currentUrl = url
-                                            CookieManager.getInstance().getCookie(url)?.let { cookie = it }
+                                            cookie = CookieManager.getInstance().getCookie(fetchUrl.ifBlank { url }).orEmpty()
                                         }
                                         progress = 100
                                         finished = true
@@ -948,10 +952,14 @@ fun LoginCaptureScreen(
                                 status = fetchFailedText
                                 return@Button
                             }
-                            capture(wv, fetchUrls, mimoUrls != null, cookie, currentUrl) { c, body ->
-                                onCaptured(c, body)
+                            busy = true
+                            status = ""
+                            capture(captureScope, wv, fetchUrls, mimoUrls != null, cookie) { c, body ->
+                                busy = false
+                                if (body == null) status = fetchFailedText else onCaptured(c, body)
                             }
                         },
+                        enabled = !busy && fetchUrl.isNotBlank(),
                     ) { Text(stringResource(R.string.action_login_fetch_now), fontSize = 12.sp) }
                 }
             }
@@ -1034,7 +1042,10 @@ fun LoginCaptureScreen(
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
                 ) {
                     OutlinedButton(
-                        onClick = { onCaptured(cookie.takeIf { it.isNotBlank() }, null) },
+                        onClick = {
+                            val saved = CookieManager.getInstance().getCookie(fetchUrl.ifBlank { currentUrl })
+                            onCaptured(saved?.takeIf { it.isNotBlank() }, null)
+                        },
                         modifier = Modifier.weight(1f),
                     ) { Text(stringResource(R.string.action_login_save_cookie), fontSize = 12.sp) }
                     Button(
@@ -1046,7 +1057,7 @@ fun LoginCaptureScreen(
                         }
                         busy = true
                         status = ""
-                        capture(wv, fetchUrls, mimoUrls != null, cookie, currentUrl) { c, body ->
+                        capture(captureScope, wv, fetchUrls, mimoUrls != null, cookie) { c, body ->
                             busy = false
                             if (body == null) status = fetchFailedText else onCaptured(c, body)
                         }
@@ -1115,22 +1126,23 @@ private fun CompactAction(
  * 成功时回调 (cookie, json 文本)，失败回调 (cookie, null)。
  */
 private fun capture(
+    scope: CoroutineScope,
     webView: WebView,
     urls: List<String>,
     mergeMimo: Boolean,
     currentCookie: String,
-    currentUrl: String,
     onResult: (cookie: String?, json: String?) -> Unit,
 ) {
     if (urls.isEmpty()) {
         onResult(currentCookie.takeIf { it.isNotBlank() }, null)
         return
     }
-    webView.evaluateJavascript(PageFetch.js(urls)) { raw ->
-        val results = PageFetch.decode(raw)
+    scope.launch {
+        val results = PageFetch.run(webView, urls)
+        val fresh = CookieManager.getInstance().getCookie(urls.first()).orEmpty()
         if (results == null) {
-            onResult(currentCookie.takeIf { it.isNotBlank() }, null)
-            return@evaluateJavascript
+            onResult(fresh.takeIf { it.isNotBlank() }, null)
+            return@launch
         }
         // 小米三个接口合并成一份；其他厂商就是单接口的原始回包
         val body = if (mergeMimo) {
@@ -1140,11 +1152,9 @@ private fun capture(
         }
         val ok = body != null && runCatching { JSONObject(body) }.isSuccess
         if (ok) {
-            val fresh = CookieManager.getInstance().getCookie(webView.url ?: currentUrl)
-                ?: currentCookie
             onResult(fresh.takeIf { it.isNotBlank() }, body)
         } else {
-            onResult(currentCookie.takeIf { it.isNotBlank() }, null)
+            onResult(fresh.takeIf { it.isNotBlank() }, null)
         }
     }
 }

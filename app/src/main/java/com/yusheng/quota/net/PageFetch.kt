@@ -3,6 +3,9 @@ package com.yusheng.quota.net
 import android.webkit.WebView
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withTimeoutOrNull
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.CancellationException
+import java.util.UUID
 import org.json.JSONObject
 import org.json.JSONTokener
 import kotlin.coroutines.resume
@@ -10,9 +13,8 @@ import kotlin.coroutines.resume
 /**
  * 在**页面上下文里**请求接口：同源 + 自动携带登录态。
  *
- * 控制台会话普遍是 HttpOnly Cookie —— `CookieManager.getCookie()` 拿不到，
- * App 自己的 HTTP 客户端也带不上，只有在页面里发 fetch 才是通的。
- * 这里把这段 JS 与回包解析抽出来，登录页和后台查询共用同一份实现。
+ * fetch 自动携带页面会话。evaluateJavascript 不会等待 Promise，
+ * 因此用每次请求独立的结果槽轮询完成状态，并在结束时中止请求、清理槽。
  */
 object PageFetch {
 
@@ -22,14 +24,18 @@ object PageFetch {
     }
 
     /** 一次性请求多个同源接口（避免多次 evaluateJavascript 的往返） */
-    fun js(urls: List<String>, accept: String = "application/json, text/plain, */*"): String {
+    internal fun js(urls: List<String>, key: String, accept: String = "application/json, text/plain, */*"): String {
         val list = urls.joinToString(",") { JSONObject.quote(it) }
         val acceptLiteral = JSONObject.quote(accept)
+        val keyLiteral = JSONObject.quote(key)
         return """
             (function () {
               var urls = [$list];
-              return Promise.all(urls.map(function (u) {
-                return fetch(u, { credentials: "include", headers: { "Accept": $acceptLiteral } })
+              var key = $keyLiteral;
+              var slot = { result: null, controller: new AbortController() };
+              window[key] = slot;
+              Promise.all(urls.map(function (u) {
+                return fetch(u, { credentials: "include", signal: slot.controller.signal, headers: { "Accept": $acceptLiteral } })
                   .then(function (r) {
                     return r.text().then(function (t) {
                       return { url: u, status: r.status, body: t };
@@ -38,7 +44,10 @@ object PageFetch {
                   .catch(function (e) {
                     return { url: u, status: 0, body: String((e && e.message) || e) };
                   });
-              })).then(function (all) { return JSON.stringify(all); });
+              })).then(function (all) {
+                if (window[key] === slot) slot.result = JSON.stringify(all);
+              });
+              return true;
             })()
         """.trimIndent()
     }
@@ -67,14 +76,42 @@ object PageFetch {
         webView: WebView,
         urls: List<String>,
         timeoutMs: Long = 20_000,
-    ): List<Fetched>? = withTimeoutOrNull(timeoutMs) {
-        suspendCancellableCoroutine<List<Fetched>?> { cont ->
-            runCatching {
-                webView.evaluateJavascript(js(urls)) { raw ->
-                    if (cont.isActive) cont.resume(decode(raw))
+    ): List<Fetched>? = run(urls, timeoutMs) { script, callback ->
+        webView.evaluateJavascript(script, callback)
+    }
+
+    internal suspend fun run(
+        urls: List<String>,
+        timeoutMs: Long,
+        evaluate: (String, (String?) -> Unit) -> Unit,
+    ): List<Fetched>? {
+        val key = "__quotaFetch_" + UUID.randomUUID().toString().replace("-", "")
+        val literal = JSONObject.quote(key)
+        suspend fun eval(script: String): String? = suspendCancellableCoroutine { cont ->
+            try {
+                evaluate(script) { raw -> if (cont.isActive) cont.resume(raw) }
+            } catch (e: Exception) {
+                cont.cancel(e)
+            }
+        }
+        try {
+            return withTimeoutOrNull(timeoutMs) {
+                eval(js(urls, key))
+                var result: List<Fetched>? = null
+                while (result == null) {
+                    result = decode(eval("window[$literal] ? window[$literal].result : null"))
+                    if (result == null) delay(100)
                 }
-            }.onFailure {
-                if (cont.isActive) cont.resume(null)
+                result
+            }
+        } catch (e: CancellationException) {
+            throw e
+        } catch (_: Exception) {
+            return null
+        } finally {
+            // No suspending cleanup: cancellation must also remove the page state.
+            runCatching {
+                evaluate("(function(){var s=window[$literal];delete window[$literal];if(s)s.controller.abort();})()") {}
             }
         }
     }

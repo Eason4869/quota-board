@@ -63,7 +63,10 @@ jobs:
           fi
 
       - name: Build debug APK
-        run: ./gradlew assembleDebug --no-daemon
+        run: ./gradlew testDebugUnitTest lintDebug assembleDebug --no-daemon
+
+      - name: Verify WebView fetch protocol
+        run: node app/src/test/page-fetch.cjs
 
       - name: Upload debug APK
         uses: actions/upload-artifact@v4

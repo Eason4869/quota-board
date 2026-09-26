@@ -1,6 +1,8 @@
 package com.yusheng.quota.net
 
 import org.json.JSONObject
+import java.net.URI
+import kotlinx.coroutines.CancellationException
 
 /**
  * 小米 MiMo（Token Plan）额度接口。
@@ -19,24 +21,36 @@ object MimoEndpoints {
     const val DETAIL = "$HOST/api/v1/tokenPlan/detail"
     const val BALANCE = "$HOST/api/v1/balance"
 
-    /** 建立同源上下文用的轻量页：不会启动 SPA（favicon 之类会被 SPA 的 catch-all 路由接管） */
-    const val ORIGIN_PROBE = "$HOST/robots.txt"
-
     val ALL = listOf(USAGE, DETAIL, BALANCE)
 
     /** 报错里提示用户要粘哪些 Cookie */
     const val REQUIRED_COOKIES = "api-platform_serviceToken、userId"
 
     fun isMimo(url: String): Boolean =
-        url.contains("xiaomimimo.com", ignoreCase = true)
+        runCatching { URI(url).host.equals("platform.xiaomimimo.com", ignoreCase = true) }.getOrDefault(false)
+
+    /** 每个账户显式提供自己的 Cookie；不读取 WebView 的全局 CookieJar。 */
+    internal fun fetch(cookie: String, request: (String, String) -> PageFetch.Fetched): JSONObject {
+        require(cookie.isNotBlank()) { "MiMo: 请登录并保存 Cookie ($REQUIRED_COOKIES)" }
+        val usage = request(USAGE, cookie)
+        check(usage.isOk && !isNotLoggedIn(usage.body)) { "MiMo: 登录已失效，请重新登录" }
+        val results = mutableListOf(usage)
+        for (url in listOf(DETAIL, BALANCE)) {
+            try {
+                val result = request(url, cookie)
+                if (!isNotLoggedIn(result.body)) results += result
+            } catch (e: CancellationException) {
+                throw e
+            } catch (_: Exception) {
+                // 详情或余额接口暂不可用时仍保留成功获取的用量。
+            }
+        }
+        return checkNotNull(merge(results)) { "MiMo: 无法解析用量响应" }
+    }
 
     /** 用户填的地址属于 MiMo 时，返回「用量 / 详情 / 余额」三件套；否则 null */
     fun endpointsFor(url: String): List<String>? =
         if (isMimo(url)) ALL else null
-
-    /** 从任意一个 MiMo 地址推出同源轻量页 */
-    fun originProbeFor(url: String): String =
-        if (isMimo(url)) ORIGIN_PROBE else url
 
     /**
      * 把三个接口的原始回包合并成一份给解析器用的 JSON：
@@ -56,7 +70,7 @@ object MimoEndpoints {
 
     /** 回包里是不是「未登录」 */
     fun isNotLoggedIn(body: String): Boolean =
-        body.contains("\"code\":401") || body.contains("\"code\": 401") || loginUrlIn(body) != null
+        runCatching { JSONObject(body).optInt("code") == 401 }.getOrDefault(false) || loginUrlIn(body) != null
 
     fun loginUrlIn(body: String): String? = PageFetch.loginUrlIn(body)
 }

@@ -31,8 +31,8 @@ object Parsers {
         mapBalance: String,
         mapPlan: String,
         context: Context,
-    ): QueryResult =
-        when (templateId) {
+    ): QueryResult {
+        val result = when (templateId) {
             "deepseek" -> deepSeek(json)
             "openrouter" -> openRouter(json)
             "siliconflow" -> siliconFlow(json)
@@ -50,8 +50,23 @@ object Parsers {
             "claude" -> claude(json)
             "gemini" -> gemini(json)
             "openai" -> openAi(json)
-            else -> generic(json, mapBalance, mapPlan)
+            else -> generic(json, "", "")
         }
+        if (mapBalance.isBlank() && mapPlan.isBlank()) return result
+        val payload = json.optJSONObject("data")?.optJSONObject("result")
+            ?: json.optJSONObject("data") ?: json.optJSONObject("result") ?: json
+        fun mapped(mapping: String): Double {
+            val value = path(json, mapping.trim()) ?: path(payload, mapping.trim())
+            require(value != null && value.isFinite()) { "字段映射不是有效数值: $mapping" }
+            return value
+        }
+        return result.copy(
+            balance = if (mapBalance.isBlank()) result.balance
+                else (result.balance ?: Balance(0.0)).copy(amount = mapped(mapBalance)),
+            subscription = if (mapPlan.isBlank()) result.subscription
+                else (result.subscription ?: Subscription()).copy(remaining = mapped(mapPlan)),
+        )
+    }
 
     // ── 按量余额类 ────────────────────────────────────────
 
@@ -129,8 +144,7 @@ object Parsers {
     /** GET https://api.novita.ai/v3/user/balance → availableBalance（单位 0.0001 USD） */
     private fun novita(j: JSONObject): QueryResult {
         val raw = num(j, "availableBalance") ?: 0.0
-        // 旧 /v3/user/balance 以 0.0001 USD 为单位；新账单接口直接给美元
-        val usd = if (raw > 100_000) raw / 10000.0 else raw
+        val usd = raw / 10000.0
         return QueryResult(
             balance = Balance(usd, "$"),
             extras = listOf(Extra("availableBalance", fmt(raw))),

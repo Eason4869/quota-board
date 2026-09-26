@@ -7,6 +7,7 @@ import com.yusheng.quota.QuotaApp
 import com.yusheng.quota.data.Account
 import com.yusheng.quota.data.ImportCodec
 import com.yusheng.quota.data.QueryConfig
+import com.yusheng.quota.data.QueryResult
 import com.yusheng.quota.data.Settings
 import com.yusheng.quota.data.Template
 import com.yusheng.quota.data.Templates
@@ -15,6 +16,7 @@ import com.yusheng.quota.net.Parsers
 import com.yusheng.quota.update.UpdateChecker
 import com.yusheng.quota.BuildConfig
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableSharedFlow
@@ -48,7 +50,12 @@ data class UiState(
     val update: UpdateUi = UpdateUi(),
 )
 
-class QuotaViewModel(app: Application) : AndroidViewModel(app) {
+class QuotaViewModel internal constructor(
+    app: Application,
+    private val query: suspend (Template, QueryConfig, Int) -> QueryResult,
+    private val fetchLatest: suspend () -> UpdateChecker.ReleaseInfo?,
+) : AndroidViewModel(app) {
+    constructor(app: Application) : this(app, QueryEngine(app)::query, UpdateChecker::fetchLatest)
 
     /** 一次性 UI 事件：查询结果提示、导入导出提示等 */
     sealed interface Event {
@@ -57,7 +64,6 @@ class QuotaViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     private val store = (app as QuotaApp).store
-    private val engine = QueryEngine(app)
 
     private val _state = MutableStateFlow(
         UiState(
@@ -74,6 +80,18 @@ class QuotaViewModel(app: Application) : AndroidViewModel(app) {
     private var updateCheckJob: Job? = null
     /** 拖动排序的写盘防抖 */
     private var orderSaveJob: Job? = null
+    private val queryJobs = mutableMapOf<String, Job>()
+    private val queryTokens = mutableMapOf<String, Any>()
+
+    private fun invalidateQuery(id: String) {
+        queryTokens.remove(id)
+        queryJobs.remove(id)?.cancel()
+        _state.value = _state.value.copy(querying = _state.value.querying - id)
+    }
+
+    private fun invalidateAllQueries() {
+        queryTokens.keys.toList().forEach(::invalidateQuery)
+    }
 
     init {
         if (_state.value.settings.autoQueryOnStart && _state.value.accounts.isNotEmpty()) {
@@ -91,7 +109,7 @@ class QuotaViewModel(app: Application) : AndroidViewModel(app) {
         if (current.checking || current.downloading) return
         _state.value = _state.value.copy(update = current.copy(checking = true, error = null))
         viewModelScope.launch {
-            val info = UpdateChecker.fetchLatest()
+            val info = fetchLatest()
             val newer = info?.takeIf { UpdateChecker.isNewer(BuildConfig.VERSION_NAME, it.versionName) }
             _state.value = _state.value.copy(
                 update = _state.value.update.copy(
@@ -205,6 +223,7 @@ class QuotaViewModel(app: Application) : AndroidViewModel(app) {
      * 别被编辑页手里那份旧对象抹掉。
      */
     fun updateAccount(account: Account) {
+        invalidateQuery(account.id)
         persist { list ->
             list.map {
                 if (it.id != account.id) {
@@ -217,11 +236,16 @@ class QuotaViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     fun deleteAccount(id: String) {
+        invalidateQuery(id)
         persist { list -> list.filterNot { it.id == id } }
         if (_state.value.activeId == id) setActive(null)
     }
 
-    fun clearAccounts() = persist { emptyList() }
+    fun clearAccounts() {
+        invalidateAllQueries()
+        persist { emptyList() }
+        setActive(null)
+    }
 
     /** 首页拖动排序：把 from 位置的账户移到 to 位置并落盘 */
     /**
@@ -249,14 +273,18 @@ class QuotaViewModel(app: Application) : AndroidViewModel(app) {
         store.saveSettings(settings)
         _state.value = _state.value.copy(settings = settings)
         restartAutoRefresh()
+        restartUpdateCheck()
     }
 
     fun importJson(accounts: List<Account>, settings: Settings) {
+        ImportCodec.validateAccounts(accounts)
+        invalidateAllQueries()
         store.saveSettings(settings)
         _state.value = _state.value.copy(settings = settings)
         // 导入本来就是整表替换：忽略磁盘上的旧列表，直接落这份
         persist { accounts }
         restartAutoRefresh()
+        restartUpdateCheck()
     }
 
     /**
@@ -267,38 +295,53 @@ class QuotaViewModel(app: Application) : AndroidViewModel(app) {
      */
     fun refresh(id: String) {
         val account = account(id) ?: return
+        invalidateQuery(id)
+        val token = Any()
+        queryTokens[id] = token
         _state.value = _state.value.copy(querying = _state.value.querying + id)
-        viewModelScope.launch {
-            var error: String? = null
-            val result = try {
-                engine.query(
-                    template = Templates.byId(account.templateId),
-                    cfg = account.query,
-                    defaultTimeoutSec = _state.value.settings.timeoutSec,
+        val job = viewModelScope.launch(start = CoroutineStart.LAZY) {
+            try {
+                var error: String? = null
+                val result = try {
+                    query(
+                        Templates.byId(account.templateId),
+                        account.query,
+                        _state.value.settings.timeoutSec,
+                    )
+                } catch (e: CancellationException) {
+                    // 协程被取消（页面销毁等）不是查询失败，别把它写成一次错误结果
+                    throw e
+                } catch (e: Exception) {
+                    error = e.message ?: e.toString()
+                    null
+                }
+                if (queryTokens[id] !== token) return@launch
+                val now = System.currentTimeMillis()
+                val merged = store.patchAccount(id) { fresh ->
+                    if (fresh.query != account.query || fresh.templateId != account.templateId) {
+                        fresh
+                    } else if (result != null) {
+                        fresh.copy(result = result, lastError = null, updatedAt = now)
+                    } else {
+                        // 失败时保留上一次的结果，只记错误与时间
+                        fresh.copy(lastError = error, updatedAt = now)
+                    }
+                }
+                _state.value = _state.value.copy(
+                    // merged 为 null 说明这期间账户被删了：跟着从内存里去掉，别复活它
+                    accounts = merged ?: _state.value.accounts.filterNot { it.id == id },
                 )
-            } catch (e: CancellationException) {
-                // 协程被取消（页面销毁等）不是查询失败，别把它写成一次错误结果
-                throw e
-            } catch (e: Exception) {
-                error = e.message ?: e.toString()
-                null
-            }
-            val now = System.currentTimeMillis()
-            val merged = store.patchAccount(id) { fresh ->
-                if (result != null) {
-                    fresh.copy(result = result, lastError = null, updatedAt = now)
-                } else {
-                    // 失败时保留上一次的结果，只记错误与时间
-                    fresh.copy(lastError = error, updatedAt = now)
+                _events.tryEmit(Event.QueryFinished(id, error))
+            } finally {
+                if (queryTokens[id] === token) {
+                    queryTokens.remove(id)
+                    queryJobs.remove(id)
+                    _state.value = _state.value.copy(querying = _state.value.querying - id)
                 }
             }
-            _state.value = _state.value.copy(
-                // merged 为 null 说明这期间账户被删了：跟着从内存里去掉，别复活它
-                accounts = merged ?: _state.value.accounts.filterNot { it.id == id },
-                querying = _state.value.querying - id,
-            )
-            _events.tryEmit(Event.QueryFinished(id, error))
         }
+        queryJobs[id] = job
+        job.start()
     }
 
     fun refreshAll() {
@@ -307,12 +350,15 @@ class QuotaViewModel(app: Application) : AndroidViewModel(app) {
 
     /**
      * 用在应用内 WebView 里取回的原始 JSON 直接落库。
-     * 有些控制台接口的登录态是 HttpOnly，拿不到 Cookie 字符串，
-     * 只能靠 WebView 同源 fetch —— 这条路走通了就不必再走网络重查一次。
+     * 登录页已成功获取的响应不必再走网络重查一次。
      */
     fun applyJson(id: String, json: String) {
         val account = account(id) ?: return
+        invalidateQuery(id)
+        val token = Any()
+        queryTokens[id] = token
         viewModelScope.launch {
+            if (queryTokens[id] !== token) return@launch
             val parsed = runCatching {
                 Parsers.parse(
                     templateId = account.templateId,
@@ -325,12 +371,13 @@ class QuotaViewModel(app: Application) : AndroidViewModel(app) {
             val now = System.currentTimeMillis()
             // 同样按 id 合并：解析失败的记录错误、保留旧结果，其余字段以磁盘为准
             val merged = store.patchAccount(id) { fresh ->
-                parsed.fold(
+                if (fresh.query != account.query || fresh.templateId != account.templateId) fresh else parsed.fold(
                     onSuccess = { fresh.copy(result = it, lastError = null, updatedAt = now) },
                     onFailure = { fresh.copy(lastError = it.message, updatedAt = now) },
                 )
             }
             if (merged != null) _state.value = _state.value.copy(accounts = merged)
+            queryTokens.remove(id)
             _events.tryEmit(Event.QueryFinished(id, parsed.exceptionOrNull()?.message))
         }
     }
@@ -346,8 +393,6 @@ class QuotaViewModel(app: Application) : AndroidViewModel(app) {
                 if (_state.value.accounts.isNotEmpty()) refreshAll()
             }
         }
-        // 设置变化时同步重排更新检测（幂等）
-        restartUpdateCheck()
     }
 
     /**
