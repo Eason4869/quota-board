@@ -95,6 +95,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
 import org.json.JSONObject
 import java.net.HttpURLConnection
+import java.net.URI
 import java.net.URL
 
 /** logcat 统一用这个 tag 过滤：`adb logcat -s QuotaLogin` */
@@ -323,6 +324,17 @@ fun LoginCaptureScreen(
         mimoUrls ?: listOf(fetchUrl).filter { it.isNotBlank() }
     }
 
+    /**
+     * MiMo 的模板登录地址是控制台深链：一个重 SPA（主 chunk 458KB、大量可选链语法，
+     * Chrome 80 以下整段脚本不执行；低内存设备还可能渲染进程崩溃循环），用户看到的
+     * 就是「黑屏打不开」。而登录要的只是 Cookie —— 真正的登录页由接口 401 回包的
+     * loginUrl 给出（见下方 LaunchedEffect）。解析期间不加载深链，失败再回退
+     * （控制台加载后也会自己跳 SSO）。
+     */
+    var waitingLoginUrl by remember { mutableStateOf(mimoUrls != null) }
+    /** 登录完成后的自动抓取只做一次（见 onPageFinished） */
+    var autoCaptured by remember { mutableStateOf(false) }
+
     val ctx = LocalContext.current
     val clipboard = LocalClipboardManager.current
     val density = LocalDensity.current
@@ -363,18 +375,27 @@ fun LoginCaptureScreen(
      */
     LaunchedEffect(fetchUrls) {
         val primary = fetchUrls.firstOrNull() ?: return@LaunchedEffect
+        val held = waitingLoginUrl
         val resolved = resolveLoginUrlFromApi(primary)
+        if (held) waitingLoginUrl = false
         if (!resolved.isNullOrBlank() && resolved != currentUrl) {
             apiLoginUrl = resolved
             loginFromApi = true
             Log.i(TAG, "login url resolved from api: ${shortUrl(resolved)}")
+            // 万一 WebView 还没建好（理论上的竞态），factory 会拿 currentUrl 做首次加载
+            currentUrl = resolved
             webView.value?.loadUrl(resolved)
+        } else if (held) {
+            // 解析失败（接口不可达等）：回退到模板深链，别让 WebView 一直停在空白上
+            Log.w(TAG, "login url resolve failed, falling back to ${shortUrl(currentUrl)}")
+            webView.value?.loadUrl(currentUrl.ifBlank { startUrl })
         }
     }
 
     val loggedInText = stringResource(R.string.login_state_logged_in)
     val notLoggedInText = stringResource(R.string.login_state_unknown)
     val fetchFailedText = stringResource(R.string.login_fetch_failed)
+    val resolvingText = stringResource(R.string.login_resolving)
     val openBrowserText = stringResource(R.string.action_open_browser)
     val googleBlockedText = stringResource(R.string.login_google_blocked)
     val fitText = stringResource(R.string.login_fit_width)
@@ -439,6 +460,25 @@ fun LoginCaptureScreen(
         } catch (_: Exception) {
             status = openBrowserText
         }
+    }
+
+    /**
+     * 统一的导航拦截：明文 http 跳转升级、非网页 scheme 交给系统浏览器。
+     *
+     * 小米 SSO 登录成功后，sts 会 302 到 followup 参数里的 http:// 明文地址（接口回包
+     * 实测如此），而应用禁止明文加载 —— 直接放行就是 ERR_CLEARTEXT_NOT_PERMITTED，
+     * 登录明明成功却停在错误页上，后续「抓取额度」跑在错误页上下文里必然失败。
+     */
+    fun handleUrlOverride(view: WebView?, url: String): Boolean {
+        val upgraded = upgradeCleartextForFetch(url, fetchUrl)
+        if (upgraded != null) {
+            Log.i(TAG, "cleartext upgraded to https: ${shortUrl(url)}")
+            runCatching { view?.loadUrl(upgraded) }
+            return true
+        }
+        if (url.startsWith("http") || url.startsWith("about:")) return false
+        openInBrowser(url)
+        return true
     }
 
     /**
@@ -762,6 +802,17 @@ fun LoginCaptureScreen(
                                         if (url != null) currentUrl = url
                                         progress = 10
                                         responded = true
+                                        // 新页面开始加载：清掉上一轮的「无响应 / 卡住 / 空白 / 证书」判定，
+                                        // 否则换页之后旧提示还挂在屏幕上
+                                        noResponse = false
+                                        stalled = false
+                                        looksBlank = false
+                                        sslFailed = false
+                                        // 离开平台域（回到登录表单）= 自动抓取的那次结果已作废：
+                                        // 重新武装，等再次登录完成时还能自动抓
+                                        if (mimoUrls != null && url != null && !MimoEndpoints.isMimo(url)) {
+                                            autoCaptured = false
+                                        }
                                         // 尽早挂错误钩子：入口 chunk 加载失败只以「未处理的 Promise 拒绝」
                                         // 形式出现，等到 onPageFinished 再挂就已经错过了
                                         view?.evaluateJavascript(ERROR_HOOK_JS) { }
@@ -787,6 +838,28 @@ fun LoginCaptureScreen(
                                     view?.let { probeDom(it) }
                                     // 验证码这类多步页面常比屏幕宽，自动缩到屏幕内（不重载，不丢输入）
                                     view?.let { autoFitIfOverflow(it) }
+                                    // 登录完成的信号：已落回查询接口所在域 + 平台域出现会话 Cookie。
+                                    // 此时页面多半停在 followup 的原始 JSON（或控制台）上，用户未必
+                                    // 知道还要点「抓取额度」—— 自动抓一次，成功直接收尾关闭登录页；
+                                    // 失败（会话其实已失效等）保留页面，让用户手动重试或重新登录。
+                                    val wv = view
+                                    if (mimoUrls != null && wv != null && url != null &&
+                                        !autoCaptured && !busy && MimoEndpoints.isMimo(url)
+                                    ) {
+                                        val jar = runCatching {
+                                            CookieManager.getInstance().getCookie(fetchUrl).orEmpty()
+                                        }.getOrDefault("")
+                                        if (MimoEndpoints.hasSession(jar)) {
+                                            autoCaptured = true
+                                            busy = true
+                                            status = ""
+                                            Log.i(TAG, "auto capture after login at ${shortUrl(url)}")
+                                            capture(captureScope, wv, fetchUrls, true, jar) { c, body ->
+                                                busy = false
+                                                if (body != null) onCaptured(c, body) else status = fetchFailedText
+                                            }
+                                        }
+                                    }
                                 }
 
                                 override fun onReceivedError(
@@ -797,7 +870,18 @@ fun LoginCaptureScreen(
                                     val req = request ?: return
                                     if (req.isForMainFrame) {
                                         responded = true
-                                        status = error?.description?.toString() ?: fetchFailedText
+                                        val desc = error?.description?.toString().orEmpty()
+                                        // POST 形式的重定向不经过 shouldOverrideUrlLoading，
+                                        // 明文跳转会被拦在这里：升级成 https 重载一次，别让登录死在错误页
+                                        if (desc.contains("CLEARTEXT", true)) {
+                                            val upgraded = upgradeCleartextForFetch(req.url?.toString().orEmpty(), fetchUrl)
+                                            if (upgraded != null) {
+                                                Log.w(TAG, "cleartext blocked, reloading as https: ${shortUrl(upgraded)}")
+                                                runCatching { view?.loadUrl(upgraded) }
+                                                return
+                                            }
+                                        }
+                                        status = desc.ifBlank { fetchFailedText }
                                         Log.w(TAG, "onReceivedError main ${error?.errorCode}: $status")
                                     } else {
                                         // 子资源失败原先被这里过滤掉 —— 白屏的盲区正是在这：
@@ -863,23 +947,22 @@ fun LoginCaptureScreen(
                                     request: WebResourceRequest?,
                                 ): Boolean {
                                     val url = request?.url?.toString().orEmpty()
-                                    if (url.startsWith("http") || url.startsWith("about:")) return false
-                                    openInBrowser(url)
-                                    return true
+                                    return handleUrlOverride(view, url)
                                 }
 
                                 @Deprecated("Deprecated in Java")
                                 @Suppress("DEPRECATION")
                                 override fun shouldOverrideUrlLoading(view: WebView?, url: String?): Boolean {
                                     if (url.isNullOrBlank()) return false
-                                    if (url.startsWith("http") || url.startsWith("about:")) return false
-                                    openInBrowser(url)
-                                    return true
+                                    return handleUrlOverride(view, url)
                                 }
                             }
                             // 渲染进程被回收后重建时用 currentUrl，回到崩溃时所在的页面
-                            // 而不是入口页（否则登录到一半会被打回首页）
-                            loadUrl(currentUrl.ifBlank { startUrl })
+                            // 而不是入口页（否则登录到一半会被打回首页）。
+                            // MiMo 在等接口解析登录页期间先不加载（见 waitingLoginUrl 的说明）。
+                            if (!waitingLoginUrl) {
+                                loadUrl(currentUrl.ifBlank { startUrl })
+                            }
                             webView.value = this
                         }
                     },
@@ -978,6 +1061,7 @@ fun LoginCaptureScreen(
                         providerInfo == null -> webViewMissing
                         setupError.isNotBlank() -> stringResource(R.string.login_setup_failed, setupError)
                         sslFailed -> sslErrorText
+                        waitingLoginUrl -> resolvingText
                         status.isNotBlank() -> status
                         engineBroken -> stringResource(R.string.login_script_failed, consoleError)
                         engineTooOld -> engineOldText ?: blankHint
@@ -1088,6 +1172,25 @@ private fun shortUrl(raw: String?): String {
         val host = u.host.orEmpty()
         if (host.isBlank()) s else host + (u.path ?: "")
     }.getOrDefault(s).take(70)
+}
+
+/**
+ * 查询接口域上的明文 http 跳转升级为 https。
+ *
+ * 小米 SSO 登录成功后，sts 会 302 到 followup 参数里的 http:// 明文地址（接口 401 回包
+ * 实测如此，2026-09），而 Android 9+ 默认禁止明文加载 —— 不升级就是
+ * ERR_CLEARTEXT_NOT_PERMITTED，登录成功却停在错误页上。只升级与查询接口同域、且查询
+ * 接口本身是 https 的跳转：别的站点不动（升了反而可能打不开），本机 http 云函数地址
+ * （查询接口就是 http）也不动。
+ */
+internal fun upgradeCleartextForFetch(url: String, fetchUrl: String): String? {
+    val trimmed = url.trim()
+    if (!trimmed.lowercase().startsWith("http://")) return null
+    if (!fetchUrl.trim().lowercase().startsWith("https://")) return null
+    val host = runCatching { URI(trimmed).host?.lowercase() }.getOrNull() ?: return null
+    val fetchHost = runCatching { URI(fetchUrl.trim()).host?.lowercase() }.getOrNull() ?: return null
+    if (host != fetchHost) return null
+    return "https://" + trimmed.substring("http://".length)
 }
 
 /** API 29–32 的强制暗色同样会把页面刷黑，统一关掉（更高版本用 ALGORITHMIC_DARKENING 分支） */

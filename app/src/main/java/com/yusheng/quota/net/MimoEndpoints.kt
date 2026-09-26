@@ -68,6 +68,9 @@ object MimoEndpoints {
         return JSONObject().put("mimo", mimo)
     }
 
+    /** 平台域 Cookie 里是否已有登录会话（`api-platform_serviceToken` 出现 = 登录完成） */
+    fun hasSession(cookie: String): Boolean = cookie.contains("api-platform_serviceToken")
+
     /** 回包里是不是「未登录」 */
     fun isNotLoggedIn(body: String): Boolean =
         runCatching { JSONObject(body).optInt("code") == 401 }.getOrDefault(false) || loginUrlIn(body) != null

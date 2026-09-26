@@ -140,6 +140,7 @@
     <string name="login_state_logged_in">已检测到登录态，点「抓取额度」。</string>
     <string name="login_state_unknown">请先在下方登录，再点「抓取额度」。</string>
     <string name="login_fetch_failed">没能从这个页面取到额度接口数据</string>
+    <string name="login_resolving">正在获取登录页…</string>
     <string name="login_google_blocked">Google 登录会拒绝应用内浏览器：请用「在浏览器打开」登录，或把该账户改用云函数。</string>
     <string name="login_fit_width">适应宽度</string>
     <string name="login_fullscreen">全屏</string>

@@ -143,6 +143,7 @@
     <string name="login_state_logged_in">Session detected — tap Fetch now.</string>
     <string name="login_state_unknown">Sign in below, then tap Fetch now.</string>
     <string name="login_fetch_failed">Could not read the quota endpoint from this page</string>
+    <string name="login_resolving">Fetching the sign-in page…</string>
     <string name="login_google_blocked">Google sign-in blocks in-app browsers. Use “Open in browser”, or switch this account to a cloud function.</string>
     <string name="login_fit_width">Fit width</string>
     <string name="login_fullscreen">Full screen</string>
