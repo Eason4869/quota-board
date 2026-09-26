@@ -2,7 +2,9 @@ package com.yusheng.quota.ui
 
 import android.annotation.SuppressLint
 import android.content.ActivityNotFoundException
+import android.content.Context
 import android.content.Intent
+import android.content.res.Configuration
 import android.graphics.Bitmap
 import android.graphics.Color as AndroidColor
 import android.net.Uri
@@ -160,6 +162,8 @@ private const val PROBE_JS = """
         o.ifr1 = ifr.length ? cut(ifr[0].src || '(no src)', 90) : '';
         var rs = performance.getEntriesByType('resource') || [];
         o.res = rs.length;
+        // 页面实际渲出来的背景色：判断「黑屏是渲黑了还是没画出来」的直接证据
+        try { o.bg = cut(getComputedStyle(d.documentElement).backgroundColor, 24); } catch (e) {}
         var bad = [];
         for (var i = 0; i < rs.length; i++) {
           var e = rs[i];
@@ -716,7 +720,7 @@ fun LoginCaptureScreen(
                         // 不接住就是一次崩溃，用户只会觉得「应用坏了」，还不如给个空 View + 原因。
                         // 这里在组合期，直接写 state 会打断当前组合，所以 post 到下一帧再写。
                         val created = try {
-                            WebView(context)
+                            WebView(lightWebContext(context))
                         } catch (e: Throwable) {
                             Log.e(TAG, "WebView create failed", e)
                             val placeholder = View(context)
@@ -1201,6 +1205,21 @@ private fun applyForceDarkOff(settings: WebSettings) {
     }
 }
 
+/**
+ * 登录页 WebView 固定用「白天」上下文创建。
+ *
+ * 新版 WebView 会把应用的暗色主题透传给页面（prefers-color-scheme: dark）：诊断信息
+ * 显示页面明明加载成功（finished=yes、blank=no、DOM 完整），但小米登录页的暗色样式
+ * 是纯黑背景 + 30% 透明度的控件 —— 用户看到的就是一片黑。登录要的是能看清表单，
+ * 不需要跟随主题；这里把 WebView 自己的 uiMode 强制成 NIGHT_NO。
+ */
+private fun lightWebContext(base: Context): Context {
+    val cfg = Configuration(base.resources.configuration)
+    cfg.uiMode = (cfg.uiMode and Configuration.UI_MODE_NIGHT_MASK.inv()) or
+        Configuration.UI_MODE_NIGHT_NO
+    return base.createConfigurationContext(cfg)
+}
+
 /** 底部的一枚小动作：图标 + 短文字，横向紧凑排列 */
 @Composable
 private fun CompactAction(
@@ -1331,6 +1350,7 @@ private data class PageProbe(
     val badDetail: String,
     val jsErrors: String,
     val probeError: String,
+    val bgColor: String,
 ) {
     /** 页面几乎是空的：正文没字、根节点没有子节点 */
     val blank: Boolean get() = text < 40 && rootChildren <= 0
@@ -1352,6 +1372,7 @@ private data class PageProbe(
         append(" res=").append(resources)
         append(" bad=").append(badResources)
         if (badDetail.isNotBlank()) append("(").append(badDetail).append(")")
+        if (bgColor.isNotBlank()) append(" bg=").append(bgColor)
         if (jsErrors.isNotBlank()) append(" errJs=").append(jsErrors)
         if (probeError.isNotBlank()) append(" probeErr=").append(probeError)
     }
@@ -1375,5 +1396,6 @@ private fun decodeProbe(raw: String?): PageProbe? {
         badDetail = obj.optString("bad", ""),
         jsErrors = obj.optString("errJs", ""),
         probeError = obj.optString("err", ""),
+        bgColor = obj.optString("bg", ""),
     )
 }

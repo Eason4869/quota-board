@@ -3,6 +3,11 @@
 本项目遵循 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/) 与
 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [1.2.33] - 2026-09-26
+
+- 修复深色主题下登录页「黑屏」：新版 WebView 会把应用的暗色主题透传给页面，小米登录页的暗色样式是纯黑背景加 30% 透明度的控件——页面其实加载成功，用户看到却是一片黑。登录页 WebView 现在固定以浅色（NIGHT_NO）配置创建，表单永远清晰可读
+- 诊断探针新增 `bg=` 字段（页面实际渲染的背景色），下次再遇到「黑屏」能直接区分是渲黑了还是没画出来
+
 ## [1.2.32] - 2026-09-26
 
 - 修复 Gemini 查询 401：access token 约 1 小时就过期，现在令牌框支持粘贴 `~/.gemini/oauth_creds.json` 的完整内容或其中 `1//` 开头的 refresh_token，查询时自动续期（gemini-cli 公开 OAuth 客户端，常量已对照源码与端点验证）
