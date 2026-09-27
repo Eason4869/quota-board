@@ -160,7 +160,7 @@ object Templates {
             modes = listOf(QueryMode.LOGIN, QueryMode.WEBHOOK),
             defaults = QueryConfig(
                 mode = QueryMode.LOGIN,
-                // 直接填额度接口：登录页地址由接口自己返回的 loginUrl 决定（见 LoginCaptureScreen），
+                // 直接填额度接口：登录页地址由接口自己返回的 loginUrl 决定，
                 // 比猜控制台深链可靠 —— 深链要先跑通 SPA 才谈得上登录，老内核上就是白屏。
                 url = "https://platform.xiaomimimo.com/api/v1/tokenPlan/usage",
                 loginUrl = "https://platform.xiaomimimo.com/console/plan-manage",
@@ -278,12 +278,12 @@ object Templates {
             nameRes = R.string.vendor_qianwen,
             descRes = R.string.vendor_qianwen_desc,
             color = 0xFF615CED,
-            defaultMode = QueryMode.API,
-            modes = listOf(QueryMode.API, QueryMode.WEBHOOK),
+            defaultMode = QueryMode.LOGIN,
+            modes = listOf(QueryMode.LOGIN, QueryMode.API, QueryMode.WEBHOOK),
             defaults = QueryConfig(
-                mode = QueryMode.API,
-                // Token Plan 网关（OpenAI 兼容）；额度接口由引擎按候选路径探测
-                url = "https://token-plan.maas.qianwenaiapi.com/compatible-mode/v1/usage",
+                mode = QueryMode.LOGIN,
+                url = "https://cli.qianwenai.com/data/v2/api.json",
+                loginUrl = "https://platform.qianwenai.com/",
             ),
         ),
         Template(

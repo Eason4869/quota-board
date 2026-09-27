@@ -70,7 +70,6 @@
     <!-- Hints -->
     <string name="hint_zhipu">Enter your Zhipu API key as-is; no Bearer prefix is needed.</string>
     <string name="hint_volc_aksk">Use account-level AK/SK from the console (not the inference API key).</string>
-    <string name="hint_login">Fill in the console endpoint that returns JSON. If a web page comes back instead of data, use in-app sign-in or a cloud function.</string>
     <string name="hint_webhook">If your function or proxy requires authentication, configure it here.</string>
 
     <!-- About -->
@@ -136,8 +135,8 @@
 
     <!-- Login capture -->
     <string name="title_login">Sign in</string>
-    <string name="login_need_cookie">No session yet. Sign in inside the app to fetch the console endpoint directly.</string>
-    <string name="action_login_fetch">Sign in &amp; capture</string>
+    <string name="login_need_cookie">No session yet. Connect this account to query the console endpoint.</string>
+    <string name="action_login_fetch">Connect account</string>
     <string name="action_login_save_cookie">Save cookie only</string>
     <string name="action_login_fetch_now">Fetch now</string>
     <string name="login_state_logged_in">Session detected — tap Fetch now.</string>
@@ -162,7 +161,7 @@
     <string name="login_diag_copied">Diagnostics copied</string>
     <string name="action_update_webview">Update WebView</string>
     <string name="login_resolved_api">Opened the login page returned by the vendor API.</string>
-    <string name="err_mimo_need_login">MiMo quota needs a signed-in session. Tap “Sign in &amp; capture” on this account. A pasted Cookie must include %1$s.</string>
+    <string name="err_mimo_need_login">MiMo quota needs a signed-in session. Connect this account in the browser. A pasted Cookie must include %1$s.</string>
     <string name="err_mimo_fetch_failed">MiMo request failed (%1$s). You can also sign in with a browser and paste the Cookie into the account settings.</string>
     <string name="action_paste">Paste</string>
 
@@ -186,7 +185,7 @@
     <string name="settings_auto_update">Check for updates hourly</string>
     <string name="update_none">Already up to date</string>
     <string name="action_check_update">Check for updates</string>
-    <string name="toast_cookie_captured">Session captured</string>
+    <string name="toast_cookie_captured">Account connected</string>
     <string name="toast_import_failed">Invalid JSON</string>
     <string name="confirm_clear_title">Clear all accounts?</string>
     <string name="confirm_clear_body">This deletes every account and its credentials on this device. It cannot be undone.</string>
@@ -224,7 +223,7 @@
     <string name="vendor_copilot_desc">Premium requests quota</string>
     <string name="vendor_qianwen">Qianwen Token Plan</string>
     <string name="vendor_qianwen_desc">Token Plan windows</string>
-    <string name="hint_qianwen_key">Paste the Token Plan key from platform.qianwenai.com (the gateway is token-plan.maas.qianwenaiapi.com).</string>
+    <string name="hint_qianwen_key">A model API Key cannot read Token Plan quota. Switch to Login and authorize in your browser.</string>
     <string name="hint_moonshot_key">Paste a Moonshot (platform.moonshot.cn) API key.</string>
     <string name="hint_copilot_token">Paste a GitHub OAuth token with Copilot access (`gh auth token`).</string>
     <string name="hint_mimo_cookie">Connect MiMo using your browser or QR approval to query Token Plan and pay-as-you-go balance. You can also import a platform Cookie containing api-platform_serviceToken and userId.</string>
@@ -245,9 +244,20 @@
     <string name="mimo_detail">Plan details</string>
     <string name="mimo_balance">Pay-as-you-go balance</string>
     <string name="mimo_unavailable">Not retrieved</string>
+    <string name="qianwen_connect">Connect Qianwen</string>
+    <string name="qianwen_intro">Authorize Quota Board in your browser to read your Qianwen Token Plan balance.</string>
+    <string name="qianwen_browser_help">Approve the device request in the official page, then return here. The code expires after a few minutes.</string>
+    <string name="qianwen_waiting">Waiting for Qianwen authorization…</string>
+    <string name="qianwen_failed">Authorization or quota query failed. Get a new request and try again.</string>
+    <string name="browser_login_title">Connect account</string>
+    <string name="browser_login_help">Sign in with your system browser, then import the Cookie header from a signed-in quota request. Android does not share browser cookies with this app.</string>
+    <string name="browser_login_open">Open login page in browser</string>
+    <string name="browser_login_verify">Verify and save Cookie</string>
+    <string name="browser_login_failed">Could not verify this Cookie against the configured quota endpoint. Check the Cookie and URL.</string>
 
     <!-- Query errors -->
     <string name="err_need_aksk">Please fill in AccessKey ID / SecretAccessKey</string>
+    <string name="err_qianwen_need_login">A Qianwen model API Key cannot query Token Plan quota. Change the account to Login mode and authorize in your browser.</string>
     <string name="err_need_url">Please fill in the query URL</string>
     <string name="err_need_webhook">Please fill in the function / proxy URL</string>
     <string name="err_empty_response">Empty response</string>

@@ -99,7 +99,9 @@ class QueryEngine(private val context: Context) {
                 cfg = cfg,
             )
             // CookieManager 可读取 HttpOnly Cookie；查询使用账户保存的凭证，避免串号。
-            QueryMode.LOGIN -> if (MimoEndpoints.isMimo(cfg.url)) {
+            QueryMode.LOGIN -> if (template.id == "qianwen") {
+                QianwenLoginSession().use { it.quota(cfg.cookie) }
+            } else if (MimoEndpoints.isMimo(cfg.url)) {
                 mimoSessionFetch(cfg, timeout)
             } else {
                 requestJson(
@@ -123,7 +125,7 @@ class QueryEngine(private val context: Context) {
                 } else if (template.id == "novita") {
                     novitaUsageWithFallback(cfg, timeout)
                 } else if (template.id == "qianwen") {
-                    qianwenUsageWithFallback(cfg, timeout)
+                    throw IllegalStateException(context.getString(R.string.err_qianwen_need_login))
                 } else {
                     requestJson(
                         method = cfg.method.ifBlank { "GET" },
@@ -473,57 +475,6 @@ class QueryEngine(private val context: Context) {
                 return requestJson("GET", url, apiHeaders("novita", cfg), "", timeoutSec, QueryMode.API)
             } catch (e: Exception) {
                 errors += "${url.substringAfter("novita.ai").take(34)} → ${e.message}"
-            }
-        }
-        throw IllegalStateException(errors.joinToString("\n"))
-    }
-
-    /**
-     * 千问 Token Plan。
-     *
-     * 平台侧没有公开的额度文档接口，网关（`token-plan.maas.qianwenaiapi.com`）是 OpenAI 兼容层，
-     * 所以把「用户填的地址 → 网关常见额度路径」逐一探测；
-     * 只有能解析出内容的候选才算命中，避免把 401 与 SPA 兜底页当成成功。
-     * 全部失败时把每条路径的真实错误带出来，方便对着改「查询 URL」。
-     */
-    private suspend fun qianwenUsageWithFallback(cfg: QueryConfig, timeoutSec: Int): JSONObject {
-        val gateway = "https://token-plan.maas.qianwenaiapi.com/compatible-mode/v1"
-        val candidates = LinkedHashSet<String>().apply {
-            add(cfg.url)
-            add("$gateway/usage")
-            add("$gateway/user/info")
-            add("$gateway/user/balance")
-            add("$gateway/dashboard/billing/subscription")
-            add("$gateway/dashboard/billing/usage")
-        }.filter { it.isNotBlank() }
-
-        val errors = mutableListOf<String>()
-        for (url in candidates) {
-            val name = url.substringAfter("://").take(52)
-            // 先 GET；若网关回的是「方法 / 参数不对」（400、405），再补一次 POST。
-            // 该网关上不存在的路径一律回 401，所以能走到 400 说明这条路径是被路由的。
-            val methods = listOf("GET", "POST")
-            for ((i, method) in methods.withIndex()) {
-                try {
-                    val json = requestJson(
-                        method = method,
-                        url = url,
-                        headers = apiHeaders("qianwen", cfg),
-                        body = jsonBodyIfPost(method),
-                        timeoutSec = timeoutSec,
-                        mode = QueryMode.API,
-                    )
-                    val parsed = Parsers.parse("qianwen", json, cfg.mapBalance, cfg.mapPlan, context)
-                    val usable =
-                        parsed.balance != null || parsed.subscription != null || parsed.periods.isNotEmpty()
-                    if (usable) return json
-                    errors += "$name → 响应里没有可识别的额度字段"
-                } catch (e: Exception) {
-                    val message = e.message.orEmpty()
-                    errors += "$name → $message"
-                    val methodIssue = message.contains("400") || message.contains("405")
-                    if (!methodIssue || i == methods.lastIndex) break
-                }
             }
         }
         throw IllegalStateException(errors.joinToString("\n"))

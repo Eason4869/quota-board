@@ -104,8 +104,10 @@ private enum class Screen { HOME, DETAIL, CATALOG, CONFIG, SETTINGS, BACKUP, ABO
 /** 悬浮 Dock 占位高度：内容底部留白，保证最后一项不会被 Dock 挡住 */
 private val DockSpace = 84.dp
 
-/** 登录抓取请求：在应用内 WebView 登录，成功后回填 Cookie / 直接带回额度 JSON */
+/** 登录请求：官方浏览器授权或手动导入平台会话。 */
 private data class LoginRequest(
+    val templateId: String,
+    val config: QueryConfig,
     val loginUrl: String,
     val fetchUrl: String,
     val onResult: (cookie: String?, json: String?) -> Unit,
@@ -141,7 +143,7 @@ fun QuotaAppRoot(vm: QuotaViewModel) {
     }
 
     // 系统返回 / 侧边滑动返回：按页面层级回退，不再直接退出应用
-    //（登录页自己会先接管返回键，见 LoginCaptureScreen）
+    // 登录页自己接管返回键。
     BackHandler(enabled = loginRequest == null && screen != Screen.HOME) {
         screen = when (screen) {
             Screen.DETAIL, Screen.CATALOG, Screen.SETTINGS -> Screen.HOME
@@ -257,10 +259,13 @@ fun QuotaAppRoot(vm: QuotaViewModel) {
                                     screen = Screen.CONFIG
                                 },
                                 onLoginCapture = { loginUrl ->
-                                    loginRequest = LoginRequest(loginUrl, account.query.url) { cookie, json ->
+                                    loginRequest = LoginRequest(account.templateId, account.query, loginUrl, account.query.url) { cookie, json ->
                                         val q = account.query
                                         if (!cookie.isNullOrBlank()) {
-                                            vm.updateAccount(account.copy(query = q.copy(cookie = cookie)))
+                                            vm.updateAccount(account.copy(query = q.copy(
+                                                mode = if (account.templateId == "qianwen") QueryMode.LOGIN else q.mode,
+                                                cookie = cookie,
+                                            )))
                                         }
                                         if (json != null) vm.applyJson(account.id, json) else vm.refresh(account.id)
                                     }
@@ -277,7 +282,7 @@ fun QuotaAppRoot(vm: QuotaViewModel) {
                                             )
                                         )
                                         vm.updateAccount(fixed)
-                                        loginRequest = LoginRequest(loginUrl, fetchUrl) { cookie, json ->
+                                        loginRequest = LoginRequest(account.templateId, fixed.query, loginUrl, fetchUrl) { cookie, json ->
                                             if (!cookie.isNullOrBlank()) {
                                                 vm.updateAccount(fixed.copy(query = fixed.query.copy(cookie = cookie)))
                                             }
@@ -312,8 +317,11 @@ fun QuotaAppRoot(vm: QuotaViewModel) {
                                 onNameChange = { draftName = it },
                                 onCfgChange = { draftCfg = it },
                                 onLoginCapture = { loginUrl, fetchUrl ->
-                                    loginRequest = LoginRequest(loginUrl, fetchUrl) { cookie, _ ->
-                                        if (!cookie.isNullOrBlank()) draftCfg = draftCfg.copy(cookie = cookie)
+                                    loginRequest = LoginRequest(tpl.id, draftCfg, loginUrl, fetchUrl) { cookie, _ ->
+                                        if (!cookie.isNullOrBlank()) draftCfg = draftCfg.copy(
+                                            mode = if (tpl.id == "qianwen") QueryMode.LOGIN else draftCfg.mode,
+                                            cookie = cookie,
+                                        )
                                     }
                                 },
                                 onSave = {
@@ -393,11 +401,7 @@ fun QuotaAppRoot(vm: QuotaViewModel) {
             }
         }
 
-        // 登录抓取：盖在配置页之上，保证配置页状态不丢。
-        //
-        // 这里**不能用 AnimatedVisibility/fadeIn 包住**：alpha 动画会把整棵子树放进一个
-        // 带透明度的合成层，而 WebView 是硬件图层合成，在那个层里会整体画成黑屏或白屏
-        // （且退出动画期间子树仍在组合，WebView 也没机会销毁）。登录页要动效就只动顶栏。
+        // 登录页盖在配置页之上，保证配置页状态不丢。
         val loginReq = loginRequest
         if (loginReq != null) {
             Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
@@ -406,11 +410,14 @@ fun QuotaAppRoot(vm: QuotaViewModel) {
                     loginRequest = null
                     vm.emit(ctx.getString(R.string.toast_cookie_captured))
                 }
-                if (com.yusheng.quota.net.MimoEndpoints.isMimo(loginReq.fetchUrl)) {
+                if (loginReq.templateId == "qianwen") {
+                    QianwenLoginScreen(onCancel = { loginRequest = null }, onCaptured = onCaptured)
+                } else if (com.yusheng.quota.net.MimoEndpoints.isMimo(loginReq.fetchUrl)) {
                     MimoLoginScreen(onCancel = { loginRequest = null }, onCaptured = onCaptured)
-                } else LoginCaptureScreen(
+                } else BrowserLoginScreen(
+                    templateId = loginReq.templateId,
+                    config = loginReq.config,
                     startUrl = loginReq.loginUrl,
-                    fetchUrl = loginReq.fetchUrl,
                     onCancel = { loginRequest = null },
                     onCaptured = onCaptured,
                 )

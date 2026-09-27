@@ -29,9 +29,11 @@ internal class MimoLoginSession(
         val descriptor = json(get(login + if ('?' in login) "&_json=true" else "?_json=true"))
         val ticket = json(get(qrEndpoint(descriptor.getString("location"))))
         check(ticket.optInt("code", -1) == 0) { "MiMo: 无法创建登录请求" }
+        // The official QR page forwards _json unchanged. Removing it changes the
+        // ticket's callback contract and makes Xiaomi's confirmation page reject it.
         return Ticket(
             trustedUrl(ticket.getString("qr")).toString(),
-            trustedUrl(ticket.getString("loginUrl")).toString(),
+            browserLoginUrl(ticket.getString("loginUrl")),
             trustedUrl(ticket.getString("lp")).toString(),
         )
     }
@@ -137,9 +139,18 @@ internal class MimoLoginSession(
             val uri = trustedUrl(location)
             require(uri.host == "account.xiaomi.com") { "MiMo: 登录参数无效" }
             val query = uri.rawQuery.orEmpty().split('&').filter {
-                URLDecoder.decode(it.substringBefore('='), "UTF-8") !in listOf("_json", "_")
+                URLDecoder.decode(it.substringBefore('='), "UTF-8") != "_"
             }.joinToString("&")
             return "https://account.xiaomi.com/longPolling/loginUrl?$query"
+        }
+
+        internal fun browserLoginUrl(value: String): String {
+            val uri = trustedUrl(value)
+            val parameters = uri.rawQuery.orEmpty().split('&').filter {
+                URLDecoder.decode(it.substringBefore('='), "UTF-8") != "_json"
+            }
+            val base = uri.toString().substringBefore('?')
+            return if (parameters.isEmpty()) base else "$base?${parameters.joinToString("&")}"
         }
 
         private fun json(response: Response): JSONObject =

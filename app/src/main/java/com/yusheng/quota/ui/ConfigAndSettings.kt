@@ -168,19 +168,25 @@ fun ConfigScreen(
                     }
 
                     QueryMode.LOGIN -> {
-                        Field(stringResource(R.string.field_url), cfg.url) { onCfgChange(cfg.copy(url = it)) }
-                        Field(stringResource(R.string.field_login_url), cfg.loginUrl) { onCfgChange(cfg.copy(loginUrl = it)) }
-                        SecretField(
-                            label = stringResource(R.string.field_cookie),
-                            value = cfg.cookie,
-                            onChange = { onCfgChange(cfg.copy(cookie = it)) },
-                        )
+                        if (template.id != "qianwen") {
+                            Field(stringResource(R.string.field_url), cfg.url) { onCfgChange(cfg.copy(url = it)) }
+                            Field(stringResource(R.string.field_login_url), cfg.loginUrl) { onCfgChange(cfg.copy(loginUrl = it)) }
+                            SecretField(
+                                label = stringResource(R.string.field_cookie),
+                                value = cfg.cookie,
+                                onChange = { onCfgChange(cfg.copy(cookie = it)) },
+                            )
+                        }
                         Button(
                             onClick = { onLoginCapture(cfg.loginUrl.ifBlank { cfg.url }, cfg.url) },
                             modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
                             enabled = cfg.loginUrl.isNotBlank() || cfg.url.isNotBlank(),
                         ) { Text(stringResource(R.string.action_login_fetch)) }
-                        Hint(stringResource(if (com.yusheng.quota.net.MimoEndpoints.isMimo(cfg.url)) R.string.hint_mimo_cookie else R.string.hint_login))
+                        Hint(stringResource(when {
+                            template.id == "qianwen" -> R.string.qianwen_intro
+                            com.yusheng.quota.net.MimoEndpoints.isMimo(cfg.url) -> R.string.hint_mimo_cookie
+                            else -> R.string.browser_login_help
+                        }))
                     }
 
                     QueryMode.WEBHOOK -> {

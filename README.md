@@ -28,11 +28,11 @@
 
 | 查询方式 | 厂商 |
 |------|------|
-| 官方 API | DeepSeek、OpenRouter、SiliconFlow、StepFun、Novita、Kimi、智谱 GLM、MiniMax、OpenCode Go、Moonshot、千问 Token Plan |
+| 官方 API | DeepSeek、OpenRouter、SiliconFlow、StepFun、Novita、Kimi、智谱 GLM、MiniMax、OpenCode Go、Moonshot |
 | 订阅用量（令牌） | ChatGPT / Codex、Claude、Gemini、GitHub Copilot |
 | AK/SK 签名 | 火山方舟 Agent Plan / Coding Plan |
 | 云函数 | 任意厂商（自建函数或代理） |
-| 登录拉取 | 小米 MiMo（额度只在登录态下可取）；其余厂商也可切换到该方式 |
+| 浏览器授权 / 登录拉取 | 小米 MiMo、千问 Token Plan；其余厂商可在系统浏览器登录后导入额度接口的 Cookie |
 
 ## 界面预览
 
@@ -57,7 +57,9 @@
 两点提示：
 
 - **云函数**：网络受限、需要固定出口 IP，或希望凭证只放服务端时，把查询放到自己的函数里，地址填函数 URL 即可。
-- **登录拉取**：在应用内打开登录页，登录成功后自动抓取（也可以手动点「抓取额度」），不需要手动复制 Cookie。
+- **MiMo**：在系统浏览器确认小米二维码授权，返回应用后同时查询 Token Plan 和按量余额；也可导入 MiMo 平台 Cookie。
+- **千问 Token Plan**：选择「登录」并在系统浏览器完成设备授权。`platform.qianwenai.com` 的模型 API Key 不能查询套餐额度；旧账号若仍为「官方 API」模式，请切换为「登录」。
+- **其他登录拉取**：系统浏览器 Cookie 不会自动共享给本应用。登录后需导入额度接口请求中的 Cookie，请勿粘贴账号密码。
 
 ## 安装
 

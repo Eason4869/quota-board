@@ -6,6 +6,14 @@ import org.junit.Assert.*
 import org.junit.Test
 
 class MimoLoginTest {
+    @Test fun unauthorizedResponseExposesDecodedLoginUrl() {
+        val body = """{"code":401,"loginUrl":"https:\/\/account.xiaomi.com\/pass\/serviceLogin?sid=api-platform\u0026_json=true"}"""
+        assertEquals(
+            "https://account.xiaomi.com/pass/serviceLogin?sid=api-platform&_json=true",
+            MimoEndpoints.loginUrlIn(body),
+        )
+    }
+
     @Test fun onlyOfficialHttpsTargetsCanReceiveSessionRequests() {
         for (url in listOf("https://evil.test", "https://account.xiaomi.com.evil.test", "https://evil.test@account.xiaomi.com", "file:///etc/passwd", "https://account.xiaomi.com:444/")) {
             assertThrows(IllegalArgumentException::class.java) { MimoLoginSession.trustedUrl(url) }
@@ -14,9 +22,9 @@ class MimoLoginTest {
         assertEquals("c3.lp.account.xiaomi.com", MimoLoginSession.trustedUrl("https://c3.lp.account.xiaomi.com/lp/s?k=test").host)
     }
 
-    @Test fun browserApprovalDoesNotInheritJsonRenderingFlag() {
+    @Test fun qrTicketPreservesOfficialJsonCallbackMode() {
         val url = MimoLoginSession.qrEndpoint("https://account.xiaomi.com/fe/service/login?sid=api-platform&_json=true&callback=https%3A%2F%2Fplatform.xiaomimimo.com%2Fsts&_sign=test")
-        assertFalse(url.contains("_json"))
+        assertTrue(url.contains("_json=true"))
         assertTrue(url.contains("callback=https%3A%2F%2Fplatform.xiaomimimo.com%2Fsts"))
         assertTrue(url.contains("_sign=test"))
     }
@@ -28,7 +36,7 @@ class MimoLoginTest {
             when (uri.path) {
                 "/api/v1/tokenPlan/usage" -> reply("""{"code":401,"loginUrl":"https://account.xiaomi.com/pass/serviceLogin?sid=api-platform"}""", 401)
                 "/pass/serviceLogin" -> reply("""&&&START&&&{"location":"https://account.xiaomi.com/fe/service/login?sid=api-platform&_json=true"}""", cookies = listOf("passport=secret; Path=/; Secure"))
-                "/longPolling/loginUrl" -> reply("""{"code":0,"qr":"https://account.xiaomi.com/pass/qr/login?t=x","loginUrl":"https://c3.account.xiaomi.com/longPolling/login?t=x","lp":"https://c3.lp.account.xiaomi.com/lp/s?k=x"}""")
+                "/longPolling/loginUrl" -> reply("""{"code":0,"qr":"https://account.xiaomi.com/pass/qr/login?t=x","loginUrl":"https://c3.account.xiaomi.com/longPolling/login?t=x&_json=true","lp":"https://c3.lp.account.xiaomi.com/lp/s?k=x"}""")
                 "/lp/s" -> reply("""&&&START&&&{"code":0,"location":"http://platform.xiaomimimo.com/sts"}""")
                 "/sts" -> reply("ok", cookies = listOf("api-platform_serviceToken=token; Path=/; Secure", "userId=123; Path=/; Secure"))
                 else -> error("unexpected request")
@@ -44,6 +52,7 @@ class MimoLoginTest {
         session().use { it.begin() }
         assertTrue(requests.filter { it.first == MimoEndpoints.USAGE }.all { it.second.isEmpty() })
         assertTrue(requests.filter { it.first.contains("platform.xiaomimimo.com") }.all { !it.second.contains("passport") })
+        assertTrue(requests.none { it.first.contains("/longPolling/login?") })
     }
 
     @Test fun expiredTicketIsNotSavedAsASession() {

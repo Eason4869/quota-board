@@ -6,8 +6,8 @@ MiMo 的 Token Plan 和按量余额使用平台会话，模型调用 Key 不能�
 MiMo 入口改为原生界面，使用小米账号官网当前的二维码授权流程：
 
 1. 从额度接口的 401 响应取得官方登录地址，以 JSON 模式读取签名和 callback。
-2. 将官方登录参数传给 `/longPolling/loginUrl`，移除 `_json`，避免批准链接在浏览器显示 JSON。
-3. 显示官方二维码，并允许同一手机在系统浏览器打开 `loginUrl`。应用通过 `lp` 等待授权。
+2. 将官方登录参数传给 `/longPolling/loginUrl`，保留 `_json` 等参数，与小米官网二维码模块一致。
+3. 显示官方二维码；同一手机可在系统浏览器打开同一张票据的 `loginUrl`。只从浏览器展示地址移除 `_json`，使页面返回可交互登录页；应用不预先访问该地址，并通过 `lp` 等待授权。
 4. 成功后访问返回的 `location`，由 STS 设置平台 Cookie，再用原生 HTTP 查询额度。
 
 流程依据[小米官网二维码模块](https://cdn.web-global.fds.api.mi-img.com/mcfe--mi-account/static/static/js/QRC.ae6ac79a.chunk.js)，不是公开承诺稳定的 API。过期或协议变化须明确报错并允许刷新；备用方式是导入平台 Cookie。

@@ -41,7 +41,7 @@ object Parsers {
             "moonshot" -> moonshot(json)
             "copilot" -> copilot(json)
             "xiaomi" -> mimo(json, context)
-            "qianwen" -> qianwen(json)
+            "qianwen" -> if (json.has("qianwen")) QianwenQuota.parse(json) else qianwen(json)
             "kimi" -> kimi(json)
             "zhipu" -> zhipu(json, context)
             "minimax" -> miniMax(json)

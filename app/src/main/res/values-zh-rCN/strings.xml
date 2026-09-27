@@ -70,7 +70,6 @@
     <!-- Hints -->
     <string name="hint_zhipu">填写智谱控制台的 API Key 即可，无需添加 Bearer 前缀。</string>
     <string name="hint_volc_aksk">请使用控制台的账号级 AK/SK（非推理 API Key）。</string>
-    <string name="hint_login">请填写控制台返回 JSON 的接口地址；若返回的是网页而不是额度数据，请改用应用内登录取数或云函数。</string>
     <string name="hint_webhook">自建函数或代理需要鉴权时，在这里配置。</string>
 
     <!-- About -->
@@ -133,8 +132,8 @@
     <string name="label_updated">更新于 %1$s</string>
 
     <string name="title_login">登录</string>
-    <string name="login_need_cookie">还没有登录态。在应用内登录后可直接拉取控制台接口。</string>
-    <string name="action_login_fetch">去登录并抓取</string>
+    <string name="login_need_cookie">还没有登录态。连接此账号后才能查询控制台接口。</string>
+    <string name="action_login_fetch">连接账号</string>
     <string name="action_login_save_cookie">只保存 Cookie</string>
     <string name="action_login_fetch_now">抓取额度</string>
     <string name="login_state_logged_in">已检测到登录态，点「抓取额度」。</string>
@@ -159,7 +158,7 @@
     <string name="login_diag_copied">诊断信息已复制</string>
     <string name="action_update_webview">更新内核</string>
     <string name="login_resolved_api">已改用厂商接口返回的登录地址。</string>
-    <string name="err_mimo_need_login">小米额度接口需要登录态：请在该账户详情页点「去登录并抓取」。若改用粘贴 Cookie，必须包含 %1$s。</string>
+    <string name="err_mimo_need_login">小米额度接口需要登录态：请在该账户详情页连接账号。若改用粘贴 Cookie，必须包含 %1$s。</string>
     <string name="err_mimo_fetch_failed">小米接口取数失败（%1$s）。也可以先在浏览器登录，再把 Cookie 粘贴到账户配置里。</string>
     <string name="action_paste">粘贴</string>
 
@@ -182,7 +181,7 @@
     <string name="settings_auto_update">自动检测更新（每小时）</string>
     <string name="update_none">已是最新版本</string>
     <string name="action_check_update">检查更新</string>
-    <string name="toast_cookie_captured">已记录登录态</string>
+    <string name="toast_cookie_captured">账号已连接</string>
     <string name="toast_import_failed">JSON 无效</string>
     <string name="confirm_clear_title">清空所有账户？</string>
     <string name="confirm_clear_body">会删除本机所有账户及其凭证，不可撤销。</string>
@@ -218,7 +217,7 @@
     <string name="vendor_copilot_desc">Premium 请求额度</string>
     <string name="vendor_qianwen">千问 Token Plan</string>
     <string name="vendor_qianwen_desc">Token Plan 套餐窗口</string>
-    <string name="hint_qianwen_key">填千问 AI 平台（platform.qianwenai.com）Token Plan 的 Key；网关是 token-plan.maas.qianwenaiapi.com。</string>
+    <string name="hint_qianwen_key">模型 API Key 无法查询 Token Plan 额度。请切换到「登录」，在浏览器中授权。</string>
     <string name="hint_moonshot_key">填 Moonshot 开放平台（platform.moonshot.cn）的 API Key。</string>
     <string name="hint_copilot_token">填有 Copilot 权限的 GitHub OAuth token（`gh auth token` 即可拿到）。</string>
     <string name="hint_mimo_cookie">通过系统浏览器或扫码连接 MiMo，同时查询 Token Plan 和按量余额；也可导入包含 api-platform_serviceToken 与 userId 的平台 Cookie。</string>
@@ -239,8 +238,19 @@
     <string name="mimo_detail">套餐详情</string>
     <string name="mimo_balance">按量余额</string>
     <string name="mimo_unavailable">未取到</string>
+    <string name="qianwen_connect">连接千问</string>
+    <string name="qianwen_intro">在系统浏览器中授权额度台，查询千问 Token Plan 余额。</string>
+    <string name="qianwen_browser_help">请在千问官方页面批准设备请求，然后返回此处。授权码几分钟后过期。</string>
+    <string name="qianwen_waiting">等待千问授权…</string>
+    <string name="qianwen_failed">授权或额度查询失败。请重新获取请求后重试。</string>
+    <string name="browser_login_title">连接账号</string>
+    <string name="browser_login_help">请用系统浏览器登录，再导入已登录额度请求中的 Cookie 请求头。安卓不会把浏览器 Cookie 自动共享给本应用。</string>
+    <string name="browser_login_open">在浏览器中打开登录页</string>
+    <string name="browser_login_verify">验证并保存 Cookie</string>
+    <string name="browser_login_failed">无法用此 Cookie 查询配置的额度接口。请检查 Cookie 和接口地址。</string>
 
     <string name="err_need_aksk">请填写 AccessKey ID / SecretAccessKey</string>
+    <string name="err_qianwen_need_login">千问模型 API Key 无法查询 Token Plan 额度。请将账号切换为「登录」模式，在浏览器中授权。</string>
     <string name="err_need_url">请填写查询 URL</string>
     <string name="err_need_webhook">请填写云函数 / 代理地址</string>
     <string name="err_empty_response">响应为空</string>
