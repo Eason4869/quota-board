@@ -8,10 +8,12 @@ import com.yusheng.quota.data.QueryMode
 import com.yusheng.quota.data.QueryResult
 import com.yusheng.quota.data.Template
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.withContext
 import org.json.JSONObject
 import java.io.BufferedReader
 import java.net.HttpURLConnection
+import java.net.Proxy
 import java.net.URL
 import java.net.URLEncoder
 
@@ -47,37 +49,42 @@ class QueryEngine(private val context: Context) {
     private val googleTokenUrl = "https://oauth2.googleapis.com/token"
 
     /** 用 refresh token 换一个新的 access token（google 端点已实测，常量正确性已验证） */
-    private fun refreshGeminiAccessToken(refreshToken: String): String {
+    internal fun refreshGeminiAccessToken(refreshToken: String, tokenUrl: String = googleTokenUrl): String {
         val form = buildString {
             append("grant_type=refresh_token")
             append("&refresh_token=").append(URLEncoder.encode(refreshToken, "UTF-8"))
             append("&client_id=").append(URLEncoder.encode(geminiClientId, "UTF-8"))
             append("&client_secret=").append(URLEncoder.encode(geminiClientSecret, "UTF-8"))
         }
-        val conn = (URL(googleTokenUrl).openConnection() as HttpURLConnection).apply {
+        val conn = (URL(tokenUrl).openConnection() as HttpURLConnection).apply {
             requestMethod = "POST"
             connectTimeout = 10_000
             readTimeout = 10_000
             doOutput = true
+            instanceFollowRedirects = false
             setRequestProperty("Content-Type", "application/x-www-form-urlencoded")
         }
-        val code = runCatching { conn.responseCode }.getOrElse { 0 }
-        val text = runCatching {
-            (if (code in 200..299) conn.inputStream else conn.errorStream)
-                ?.bufferedReader()?.use { it.readText() }.orEmpty()
-        }.getOrDefault("")
-        runCatching { conn.disconnect() }
-        if (code !in 200..299) {
-            val detail = runCatching { JSONObject(text).optString("error") }.getOrNull().orEmpty()
-            throw IllegalStateException(
-                context.getString(R.string.err_gemini_refresh, detail.ifBlank { "HTTP $code" })
-            )
+        try {
+            conn.outputStream.use { it.write(form.toByteArray(Charsets.UTF_8)) }
+            val code = runCatching { conn.responseCode }.getOrElse { 0 }
+            val text = runCatching {
+                (if (code in 200..299) conn.inputStream else conn.errorStream)
+                    ?.bufferedReader()?.use { it.readText() }.orEmpty()
+            }.getOrDefault("")
+            if (code !in 200..299) {
+                val detail = runCatching { JSONObject(text).optString("error") }.getOrNull().orEmpty()
+                throw IllegalStateException(
+                    context.getString(R.string.err_gemini_refresh, detail.ifBlank { "HTTP $code" })
+                )
+            }
+            val token = runCatching { JSONObject(text).optString("access_token") }.getOrNull()
+            if (token.isNullOrBlank()) {
+                throw IllegalStateException(context.getString(R.string.err_gemini_refresh, "no access_token"))
+            }
+            return token
+        } finally {
+            conn.disconnect()
         }
-        val token = runCatching { JSONObject(text).optString("access_token") }.getOrNull()
-        if (token.isNullOrBlank()) {
-            throw IllegalStateException(context.getString(R.string.err_gemini_refresh, "no access_token"))
-        }
-        return token
     }
 
     suspend fun query(
@@ -371,10 +378,13 @@ class QueryEngine(private val context: Context) {
     /**
      * ChatGPT / Codex 用量。
      *
-     * 官方 Codex CLI 调 `backend-api/wham/usage`；社区实现也有走 `backend-api/codex/usage` 的，
-     * 两个都试，谁先成功用谁。凭据是 CLI 落盘的 access token + 账号 ID，**不需要浏览器**。
+     * 两条同域用量路由共用账户配置的代理；保留官方 HTTPS 证书验证，
+     * 不跟随重定向，避免将账号请求头转发到其他站点。
      */
     private suspend fun openAiUsageWithFallback(cfg: QueryConfig, timeoutSec: Int): JSONObject {
+        val proxy = runCatching { CodexProxy.parse(cfg.proxyUrl) }.getOrElse {
+            throw IllegalArgumentException(context.getString(R.string.err_codex_proxy))
+        }
         val candidates = LinkedHashSet<String>().apply {
             add(cfg.url)
             add("https://chatgpt.com/backend-api/wham/usage")
@@ -384,7 +394,10 @@ class QueryEngine(private val context: Context) {
         val errors = mutableListOf<String>()
         for (url in candidates) {
             try {
-                return requestJson("GET", url, apiHeaders("openai", cfg), "", timeoutSec, QueryMode.API)
+                return requestJson("GET", url, apiHeaders("openai", cfg), "", timeoutSec, QueryMode.API,
+                    proxy = proxy, followRedirects = false)
+            } catch (e: CancellationException) {
+                throw e
             } catch (e: Exception) {
                 errors += "${url.substringAfter("chatgpt.com")} → ${e.message}"
             }
@@ -539,6 +552,8 @@ class QueryEngine(private val context: Context) {
         timeoutSec: Int,
         mode: QueryMode,
         cfg: QueryConfig? = null,
+        proxy: Proxy? = null,
+        followRedirects: Boolean = true,
     ): JSONObject {
         val target = if (cfg != null) withQueryAuth(url.trim(), cfg) else url.trim()
         require(target.isNotBlank()) {
@@ -546,7 +561,7 @@ class QueryEngine(private val context: Context) {
                 if (mode == QueryMode.WEBHOOK) R.string.err_need_webhook else R.string.err_need_url
             )
         }
-        val text = httpRequest(method, target, headers, body, timeoutSec)
+        val text = httpRequest(method, target, headers, body, timeoutSec, proxy, followRedirects)
         return toJsonObject(text, mode)
     }
 
@@ -591,14 +606,19 @@ class QueryEngine(private val context: Context) {
         headers: Map<String, String>,
         body: String,
         timeoutSec: Int,
+        proxy: Proxy? = null,
+        followRedirects: Boolean = true,
     ): String {
-        val conn = runCatching { URL(url).openConnection() as HttpURLConnection }
+        val conn = runCatching {
+            val target = URL(url)
+            (if (proxy == null) target.openConnection() else target.openConnection(proxy)) as HttpURLConnection
+        }
             .getOrElse { throw IllegalStateException(context.getString(R.string.err_bad_url, url)) }
         conn.apply {
             requestMethod = method
             connectTimeout = timeoutSec.coerceIn(2, 60) * 1000
             readTimeout = timeoutSec.coerceIn(2, 60) * 1000
-            instanceFollowRedirects = true
+            instanceFollowRedirects = followRedirects
             headers.forEach { (k, v) ->
                 val name = k.filter { it.code in 0x20..0x7E }.trim()
                 val value = v.filter { it.code in 0x20..0x7E }.trim()
@@ -607,33 +627,37 @@ class QueryEngine(private val context: Context) {
             if (body.isNotEmpty()) doOutput = true
         }
 
-        if (body.isNotEmpty()) {
-            conn.outputStream.use { it.write(body.toByteArray(Charsets.UTF_8)) }
-        }
+        try {
+            if (body.isNotEmpty()) {
+                conn.outputStream.use { it.write(body.toByteArray(Charsets.UTF_8)) }
+            }
 
-        val code = conn.responseCode
-        val stream = if (code in 200..299) conn.inputStream else conn.errorStream
-        val text = stream?.bufferedReader()?.use(BufferedReader::readText) ?: ""
+            val code = conn.responseCode
+            val stream = if (code in 200..299) conn.inputStream else conn.errorStream
+            val text = stream?.bufferedReader()?.use(BufferedReader::readText) ?: ""
 
-        if (code !in 200..299) {
-            val msg = runCatching {
-                JSONObject(text).let { j ->
-                    j.optJSONObject("ResponseMetadata")?.optJSONObject("Error")?.optString("Message")
-                        ?.takeIf { it.isNotBlank() }
-                        ?: j.optString("message").takeIf { it.isNotBlank() }
-                        ?: j.optString("msg").takeIf { it.isNotBlank() }
-                        ?: j.optString("error").takeIf { it.isNotBlank() }
-                }
-            }.getOrNull()
-            throw IllegalStateException(
-                context.getString(
-                    R.string.err_http,
-                    code,
-                    msg ?: text.take(200).ifBlank { context.getString(R.string.err_no_body) },
+            if (code !in 200..299) {
+                val msg = runCatching {
+                    JSONObject(text).let { j ->
+                        j.optJSONObject("ResponseMetadata")?.optJSONObject("Error")?.optString("Message")
+                            ?.takeIf { it.isNotBlank() }
+                            ?: j.optString("message").takeIf { it.isNotBlank() }
+                            ?: j.optString("msg").takeIf { it.isNotBlank() }
+                            ?: j.optString("error").takeIf { it.isNotBlank() }
+                    }
+                }.getOrNull()
+                throw IllegalStateException(
+                    context.getString(
+                        R.string.err_http,
+                        code,
+                        msg ?: text.take(200).ifBlank { context.getString(R.string.err_no_body) },
+                    )
                 )
-            )
+            }
+            return text
+        } finally {
+            conn.disconnect()
         }
-        return text
     }
 
     /**

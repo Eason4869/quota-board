@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent" android:layout_height="match_parent">
+    <LinearLayout android:id="@android:id/background"
+        android:layout_width="match_parent" android:layout_height="match_parent" android:layout_marginTop="@dimen/widget_top_inset"
+        android:orientation="vertical" android:paddingVertical="6dp" android:paddingHorizontal="12dp"
+        android:background="@drawable/widget_background" android:clipToOutline="true">
+        <include layout="@layout/widget_header" />
+        <FrameLayout android:layout_width="match_parent" android:layout_height="0dp" android:layout_weight="1">
+            <include layout="@layout/widget_balance" />
+            <LinearLayout android:id="@+id/widget_periods" android:layout_width="match_parent" android:layout_height="match_parent"
+                android:orientation="horizontal" android:paddingVertical="3dp" android:visibility="gone" />
+        </FrameLayout>
+        <include layout="@layout/widget_footer" />
+    </LinearLayout>
+</FrameLayout>

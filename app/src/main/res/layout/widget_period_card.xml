@@ -1,0 +1,19 @@
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="0dp" android:layout_weight="1" android:layout_height="match_parent"
+    android:orientation="vertical" android:layout_marginHorizontal="3dp" android:paddingHorizontal="8dp" android:paddingVertical="6dp"
+    android:background="@drawable/widget_badge">
+    <TextView android:id="@+id/widget_period_label" android:layout_width="match_parent" android:layout_height="wrap_content"
+        android:textSize="11sp" android:textColor="#6B7A90" android:gravity="center_vertical" android:includeFontPadding="false" android:maxLines="1" android:ellipsize="end"
+        android:autoSizeTextType="uniform" android:autoSizeMinTextSize="7sp" android:autoSizeMaxTextSize="11sp" android:autoSizeStepGranularity="1sp" />
+    <TextView android:id="@+id/widget_period_value" android:layout_width="match_parent" android:layout_height="0dp" android:layout_weight="1"
+        android:textSize="26sp" android:textStyle="bold" android:fontFamily="sans-serif-medium" android:textColor="#152033" android:gravity="center_vertical"
+        android:includeFontPadding="true" android:maxLines="1"
+        android:autoSizeTextType="uniform" android:autoSizeMinTextSize="10sp" android:autoSizeMaxTextSize="26sp" android:autoSizeStepGranularity="1sp" />
+    <ProgressBar android:id="@+id/widget_period_progress" style="?android:attr/progressBarStyleHorizontal"
+        android:layout_width="match_parent" android:layout_height="4dp" android:minHeight="4dp" android:maxHeight="4dp"
+        android:progressDrawable="@drawable/widget_progress" android:indeterminate="false" android:progress="75" android:max="100" />
+    <TextView android:id="@+id/widget_period_reset" android:layout_width="match_parent" android:layout_height="wrap_content"
+        android:layout_marginTop="3dp" android:textSize="9sp" android:textColor="#6B7A90"
+        android:includeFontPadding="false" android:maxLines="1" android:ellipsize="end"
+        android:autoSizeTextType="uniform" android:autoSizeMinTextSize="7sp" android:autoSizeMaxTextSize="9sp" android:autoSizeStepGranularity="1sp" />
+</LinearLayout>

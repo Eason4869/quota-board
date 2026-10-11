@@ -11,6 +11,8 @@ import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.RuntimeEnvironment
 import org.robolectric.annotation.Config
+import org.robolectric.Shadows.shadowOf
+import android.os.Looper
 
 @OptIn(ExperimentalCoroutinesApi::class)
 @RunWith(RobolectricTestRunner::class)
@@ -30,6 +32,21 @@ class ViewModelRegressionTest {
     private fun vm(query: suspend (Template, QueryConfig, Int) -> QueryResult = { _, _, _ -> QueryResult() },
                    latest: suspend () -> com.yusheng.quota.update.UpdateChecker.ReleaseInfo? = { null }): QuotaViewModel =
         QuotaViewModel(app, query, latest).also { owner.put("vm", it) }
+
+    @Test fun backgroundResultDuringDragKeepsNewOrderAndLatestBalance() = runTest(dispatcher) {
+        val model = vm()
+        val a = model.addAccount(Templates.byId("novita"), "a", QueryConfig())
+        val b = model.addAccount(Templates.byId("novita"), "b", QueryConfig())
+        shadowOf(Looper.getMainLooper()).idle()
+        model.moveAccount(0, 1)
+        runCurrent()
+        Store(app).patchAccount(a.id) { it.copy(result = QueryResult(balance = Balance(22.0))) }
+        shadowOf(Looper.getMainLooper()).idle()
+        assertEquals(listOf(b.id, a.id), model.state.value.accounts.map { it.id })
+        advanceTimeBy(401); runCurrent()
+        assertEquals(listOf(b.id, a.id), app.store.loadAccounts().map { it.id })
+        assertEquals(22.0, app.store.loadAccounts().first { it.id == a.id }.result!!.balance!!.amount, 0.0)
+    }
 
     @Test fun lateOldRequestCannotOverwriteNewResultOrClearItsSpinner() = runTest(dispatcher) {
         var calls = 0

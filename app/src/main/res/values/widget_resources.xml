@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <dimen name="widget_corner_radius">24dp</dimen>
+    <dimen name="widget_top_inset">12dp</dimen>
+    <string name="widget_small_label">QuotaBoard 2×2</string>
+    <string name="widget_wide_label">QuotaBoard 4×2</string>
+    <string name="widget_description">Balance and remaining AI quota</string>
+    <string name="widget_choose_source">Choose an AI source</string>
+    <string name="widget_tap_edit">Tap edit to select an account</string>
+    <string name="widget_config_help">Each widget shows one saved account. You can change it using the edit button.</string>
+    <string name="widget_no_accounts">Add an AI account in QuotaBoard first.</string>
+    <string name="widget_open_app">Open QuotaBoard</string>
+    <string name="widget_remaining">Remaining quota</string>
+    <string name="widget_window_5h">5h</string>
+    <string name="widget_window_week">Week</string>
+    <string name="widget_window_month">Month</string>
+    <string name="widget_window_day">Today</string>
+    <string name="widget_reset_cards">Reset cards · %1$d</string>
+    <string name="widget_window_remaining">%1$s left</string>
+    <string name="widget_percent_remaining">%1$s left</string>
+    <string name="widget_reset_time">Reset %1$s</string>
+    <string name="widget_reset_short">Reset %1$s</string>
+    <string name="widget_reset_unknown">Reset —</string>
+    <string name="widget_reset_unavailable">Reset time unavailable</string>
+    <string name="widget_remaining_windows">Remaining: %1$s</string>
+    <string name="widget_no_data">Not queried yet</string>
+    <string name="widget_updated">Updated %1$s</string>
+    <string name="widget_updated_short">Updated %1$s</string>
+    <string name="widget_stale_short">Stale %1$s</string>
+    <string name="widget_failed_short">Failed</string>
+    <string name="widget_stale">Refresh failed · Last success %1$s</string>
+    <string name="widget_query_failed">Refresh failed · Tap refresh to retry</string>
+    <string name="widget_edit">Edit AI source</string>
+    <string name="widget_refresh">Refresh quota</string>
+    <string name="field_codex_proxy">Codex proxy URL (optional)</string>
+    <string name="hint_codex_proxy">Leave blank to use the current network. Supports http://host:port or socks5://host:port without username/password. Requires a reachable proxy; no public nodes are bundled. 127.0.0.1 means this phone. Use only a trusted proxy and never share your account token with public mirrors.</string>
+    <string name="err_codex_proxy">Invalid proxy. Use http://host:port or socks5://host:port without credentials, path or query.</string>
+</resources>

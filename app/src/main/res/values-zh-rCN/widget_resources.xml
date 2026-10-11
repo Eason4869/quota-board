@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="widget_small_label">额度台 2×2</string>
+    <string name="widget_wide_label">额度台 4×2</string>
+    <string name="widget_description">AI 余额和订阅剩余额度</string>
+    <string name="widget_choose_source">选择 AI 源</string>
+    <string name="widget_tap_edit">点击编辑选择账户</string>
+    <string name="widget_config_help">每个小组件显示一个已添加账户，可通过编辑按钮重新选择。</string>
+    <string name="widget_no_accounts">请先在额度台添加 AI 账户。</string>
+    <string name="widget_open_app">打开额度台</string>
+    <string name="widget_remaining">剩余额度</string>
+    <string name="widget_window_5h">5 小时</string>
+    <string name="widget_window_week">本周</string>
+    <string name="widget_window_month">本月</string>
+    <string name="widget_window_day">今日</string>
+    <string name="widget_reset_cards">重置卡 · %1$d</string>
+    <string name="widget_window_remaining">%1$s剩余</string>
+    <string name="widget_percent_remaining">剩余 %1$s</string>
+    <string name="widget_reset_time">重置于 %1$s</string>
+    <string name="widget_reset_short">重置 %1$s</string>
+    <string name="widget_reset_unknown">重置 —</string>
+    <string name="widget_reset_unavailable">未提供重置时间</string>
+    <string name="widget_remaining_windows">剩余：%1$s</string>
+    <string name="widget_no_data">尚未查询</string>
+    <string name="widget_updated">更新于 %1$s</string>
+    <string name="widget_updated_short">更新 %1$s</string>
+    <string name="widget_stale_short">失败 %1$s</string>
+    <string name="widget_failed_short">刷新失败</string>
+    <string name="widget_stale">刷新失败 · 上次成功 %1$s</string>
+    <string name="widget_query_failed">刷新失败 · 点击刷新重试</string>
+    <string name="widget_edit">编辑 AI 源</string>
+    <string name="widget_refresh">刷新额度</string>
+    <string name="field_codex_proxy">Codex 代理地址（可选）</string>
+    <string name="hint_codex_proxy">留空使用当前网络。支持 http://主机:端口 或 socks5://主机:端口，暂不支持用户名密码。需要可用代理，不含公用节点。127.0.0.1 指手机本身。请仅使用可信代理，不要将账号令牌交给公用镜像。</string>
+    <string name="err_codex_proxy">代理地址无效。请填写 http://主机:端口 或 socks5://主机:端口，不含用户名密码、路径或查询参数。</string>
+</resources>

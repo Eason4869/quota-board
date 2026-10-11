@@ -1,6 +1,8 @@
 package com.yusheng.quota.data
 
 import android.content.Context
+import android.content.SharedPreferences
+import java.io.Closeable
 import kotlinx.serialization.decodeFromString
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
@@ -25,6 +27,31 @@ class Store(context: Context) {
 
     fun loadAccounts(): List<Account> = locked { loadAccountsLocked() }
 
+    /** A process-wide token orders foreground and widget requests across Store instances. */
+    fun beginAccountQuery(id: String): Any = locked {
+        Any().also { QUERY_TOKENS[id] = it }
+    }
+
+    /** The snapshot and token must be acquired together so import cannot slip between them. */
+    fun beginAccountQuerySnapshot(id: String): Pair<Account, Any>? = locked {
+        val account = loadAccountsLocked().firstOrNull { it.id == id } ?: return@locked null
+        account to beginAccountQuery(id)
+    }
+
+    fun invalidateAccountQuery(id: String) = locked { QUERY_TOKENS.remove(id); Unit }
+
+    /** Explicit backup restore cancels every pre-import request, including widget-only queries. */
+    fun replaceAccounts(accounts: List<Account>): List<Account> = locked {
+        QUERY_TOKENS.clear()
+        saveAccountsLocked(accounts)
+        accounts
+    }
+
+    fun patchQueryAccount(id: String, token: Any, patch: (Account) -> Account): List<Account>? = locked {
+        if (QUERY_TOKENS[id] !== token) return@locked loadAccountsLocked()
+        patchAccount(id, patch).also { QUERY_TOKENS.remove(id) }
+    }
+
     /**
      * 整表事务：读回**磁盘上的最新列表**交给 [transform]，再写回。
      * 新增 / 删除 / 导入这类本来就要动整表的操作走这里——关键在「读的是磁盘」，
@@ -35,6 +62,7 @@ class Store(context: Context) {
      */
     fun mutateAccounts(transform: (List<Account>) -> List<Account>): List<Account> = locked {
         val next = transform(loadAccountsLocked())
+        QUERY_TOKENS.keys.retainAll(next.map { it.id }.toSet())
         saveAccountsLocked(next)
         next
     }
@@ -60,6 +88,19 @@ class Store(context: Context) {
 
     fun saveSettings(settings: Settings) {
         prefs.edit().putString(KEY_SETTINGS, json.encodeToString(settings)).apply()
+    }
+
+    /** Callbacks run on the main thread, including writes from background workers. */
+    fun observe(onAccountsChanged: () -> Unit, onSettingsChanged: () -> Unit = {}): Closeable {
+        val listener = SharedPreferences.OnSharedPreferenceChangeListener { _, key ->
+            when (key) {
+                KEY_ACCOUNTS -> onAccountsChanged()
+                KEY_SETTINGS -> onSettingsChanged()
+            }
+        }
+        prefs.registerOnSharedPreferenceChangeListener(listener)
+        // Keep a strong reference until the owner closes its subscription.
+        return Closeable { prefs.unregisterOnSharedPreferenceChangeListener(listener) }
     }
 
     /**
@@ -105,5 +146,6 @@ class Store(context: Context) {
         const val KEY_SETTINGS = "settings"
         const val KEY_ACCOUNTS_CORRUPT = "accounts_corrupt"
         val LOCK = Any()
+        val QUERY_TOKENS = mutableMapOf<String, Any>()
     }
 }

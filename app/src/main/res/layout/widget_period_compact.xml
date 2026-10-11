@@ -1,0 +1,17 @@
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="0dp" android:layout_weight="1" android:layout_height="match_parent"
+    android:orientation="vertical" android:layout_marginHorizontal="1dp" android:paddingHorizontal="2dp"
+    android:background="@drawable/widget_badge">
+    <TextView android:id="@+id/widget_period_label" android:layout_width="match_parent" android:layout_height="wrap_content"
+        android:textSize="8sp" android:textColor="#6B7A90" android:gravity="center_vertical" android:includeFontPadding="false" android:maxLines="1" android:ellipsize="end"
+        android:autoSizeTextType="uniform" android:autoSizeMinTextSize="6sp" android:autoSizeMaxTextSize="8sp" android:autoSizeStepGranularity="1sp" />
+    <TextView android:id="@+id/widget_period_value" android:layout_width="match_parent" android:layout_height="0dp" android:layout_weight="1"
+        android:textSize="18sp" android:textStyle="bold" android:fontFamily="sans-serif-medium" android:textColor="#152033" android:gravity="center_vertical"
+        android:includeFontPadding="true" android:maxLines="1"
+        android:autoSizeTextType="uniform" android:autoSizeMinTextSize="7sp" android:autoSizeMaxTextSize="18sp" android:autoSizeStepGranularity="1sp" />
+    <ProgressBar android:id="@+id/widget_period_progress" style="?android:attr/progressBarStyleHorizontal"
+        android:layout_width="match_parent" android:layout_height="2dp" android:minHeight="2dp" android:maxHeight="2dp"
+        android:progressDrawable="@drawable/widget_progress" android:indeterminate="false" android:progress="75" android:max="100" />
+    <TextView android:id="@+id/widget_period_reset" android:layout_width="match_parent" android:layout_height="wrap_content"
+        android:textSize="7sp" android:textColor="#6B7A90" android:includeFontPadding="false" android:maxLines="2" android:ellipsize="end" />
+</LinearLayout>

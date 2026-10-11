@@ -29,6 +29,24 @@
             </intent-filter>
         </activity>
 
+        <activity android:name=".widget.WidgetConfigActivity" android:exported="true">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_CONFIGURE" />
+            </intent-filter>
+        </activity>
+        <receiver android:name=".widget.SmallQuotaWidget" android:exported="false" android:label="@string/widget_small_label">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data android:name="android.appwidget.provider" android:resource="@xml/widget_quota_small_info" />
+        </receiver>
+        <receiver android:name=".widget.WideQuotaWidget" android:exported="false" android:label="@string/widget_wide_label">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data android:name="android.appwidget.provider" android:resource="@xml/widget_quota_wide_info" />
+        </receiver>
+
         <!-- 供系统安装器读取下载好的 APK -->
         <provider
             android:name="androidx.core.content.FileProvider"

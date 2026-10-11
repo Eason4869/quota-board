@@ -82,8 +82,24 @@ class QuotaViewModel internal constructor(
     private var orderSaveJob: Job? = null
     private val queryJobs = mutableMapOf<String, Job>()
     private val queryTokens = mutableMapOf<String, Any>()
+    private var pendingAccountOrder: List<String>? = null
+    private val accountObserver = store.observe(onAccountsChanged = {
+        _state.value = _state.value.copy(accounts = inPendingOrder(store.loadAccounts()))
+    })
+
+    private fun inPendingOrder(accounts: List<Account>): List<Account> {
+        val ids = pendingAccountOrder ?: return accounts
+        val byId = accounts.associateBy { it.id }
+        return ids.mapNotNull { byId[it] } + accounts.filterNot { it.id in ids }
+    }
+
+    override fun onCleared() {
+        accountObserver.close()
+        super.onCleared()
+    }
 
     private fun invalidateQuery(id: String) {
+        store.invalidateAccountQuery(id)
         queryTokens.remove(id)
         queryJobs.remove(id)?.cancel()
         _state.value = _state.value.copy(querying = _state.value.querying - id)
@@ -243,6 +259,8 @@ class QuotaViewModel internal constructor(
 
     fun clearAccounts() {
         invalidateAllQueries()
+        orderSaveJob?.cancel()
+        pendingAccountOrder = null
         persist { emptyList() }
         setActive(null)
     }
@@ -256,12 +274,15 @@ class QuotaViewModel internal constructor(
         val list = _state.value.accounts.toMutableList()
         if (from !in list.indices || to !in list.indices || from == to) return
         list.add(to, list.removeAt(from))
+        pendingAccountOrder = list.map { it.id }
         _state.value = _state.value.copy(accounts = list)
         orderSaveJob?.cancel()
         orderSaveJob = viewModelScope.launch {
             delay(400)
-            // mutateAccounts 是线程安全的写盘入口：把内存里的新顺序直接写回
-            store.mutateAccounts { _state.value.accounts }
+            // Apply only the pending ID order to the latest records, preserving background results.
+            val merged = store.mutateAccounts { inPendingOrder(it) }
+            pendingAccountOrder = null
+            _state.value = _state.value.copy(accounts = merged)
         }
     }
 
@@ -279,10 +300,12 @@ class QuotaViewModel internal constructor(
     fun importJson(accounts: List<Account>, settings: Settings) {
         ImportCodec.validateAccounts(accounts)
         invalidateAllQueries()
+        orderSaveJob?.cancel()
+        pendingAccountOrder = null
         store.saveSettings(settings)
         _state.value = _state.value.copy(settings = settings)
         // 导入本来就是整表替换：忽略磁盘上的旧列表，直接落这份
-        persist { accounts }
+        _state.value = _state.value.copy(accounts = store.replaceAccounts(accounts))
         restartAutoRefresh()
         restartUpdateCheck()
     }
@@ -294,9 +317,8 @@ class QuotaViewModel internal constructor(
      * 磁盘上的最新版本，而不是拿请求前那份快照整条盖回去。
      */
     fun refresh(id: String) {
-        val account = account(id) ?: return
         invalidateQuery(id)
-        val token = Any()
+        val (account, token) = store.beginAccountQuerySnapshot(id) ?: return
         queryTokens[id] = token
         _state.value = _state.value.copy(querying = _state.value.querying + id)
         val job = viewModelScope.launch(start = CoroutineStart.LAZY) {
@@ -317,7 +339,7 @@ class QuotaViewModel internal constructor(
                 }
                 if (queryTokens[id] !== token) return@launch
                 val now = System.currentTimeMillis()
-                val merged = store.patchAccount(id) { fresh ->
+                val merged = store.patchQueryAccount(id, token) { fresh ->
                     if (fresh.query != account.query || fresh.templateId != account.templateId) {
                         fresh
                     } else if (result != null) {
@@ -329,7 +351,7 @@ class QuotaViewModel internal constructor(
                 }
                 _state.value = _state.value.copy(
                     // merged 为 null 说明这期间账户被删了：跟着从内存里去掉，别复活它
-                    accounts = merged ?: _state.value.accounts.filterNot { it.id == id },
+                    accounts = inPendingOrder(merged ?: _state.value.accounts.filterNot { it.id == id }),
                 )
                 _events.tryEmit(Event.QueryFinished(id, error))
             } finally {
@@ -353,9 +375,8 @@ class QuotaViewModel internal constructor(
      * 登录页已成功获取的响应不必再走网络重查一次。
      */
     fun applyJson(id: String, json: String) {
-        val account = account(id) ?: return
         invalidateQuery(id)
-        val token = Any()
+        val (account, token) = store.beginAccountQuerySnapshot(id) ?: return
         queryTokens[id] = token
         viewModelScope.launch {
             if (queryTokens[id] !== token) return@launch
@@ -370,13 +391,13 @@ class QuotaViewModel internal constructor(
             }
             val now = System.currentTimeMillis()
             // 同样按 id 合并：解析失败的记录错误、保留旧结果，其余字段以磁盘为准
-            val merged = store.patchAccount(id) { fresh ->
+            val merged = store.patchQueryAccount(id, token) { fresh ->
                 if (fresh.query != account.query || fresh.templateId != account.templateId) fresh else parsed.fold(
                     onSuccess = { fresh.copy(result = it, lastError = null, updatedAt = now) },
                     onFailure = { fresh.copy(lastError = it.message, updatedAt = now) },
                 )
             }
-            if (merged != null) _state.value = _state.value.copy(accounts = merged)
+            if (merged != null) _state.value = _state.value.copy(accounts = inPendingOrder(merged))
             queryTokens.remove(id)
             _events.tryEmit(Event.QueryFinished(id, parsed.exceptionOrNull()?.message))
         }
@@ -421,6 +442,6 @@ class QuotaViewModel internal constructor(
      * 内存里那份可能落后于磁盘，拿它整表覆盖会把别人的写入抹掉。
      */
     private fun persist(transform: (List<Account>) -> List<Account>) {
-        _state.value = _state.value.copy(accounts = store.mutateAccounts(transform))
+        _state.value = _state.value.copy(accounts = inPendingOrder(store.mutateAccounts(transform)))
     }
 }

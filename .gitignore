@@ -3,6 +3,7 @@
 build/
 app/build/
 .kotlin/
+.local-tools/
 local.properties
 captures/
 .externalNativeBuild/

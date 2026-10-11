@@ -6,5 +6,6 @@
     </cloud-backup>
     <device-transfer>
         <include domain="sharedpref" path="quota_board.xml" />
+        <include domain="sharedpref" path="quota_widgets.xml" />
     </device-transfer>
 </data-extraction-rules>

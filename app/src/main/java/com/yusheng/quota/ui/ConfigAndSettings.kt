@@ -55,6 +55,7 @@ import com.yusheng.quota.data.QueryConfig
 import com.yusheng.quota.data.QueryMode
 import com.yusheng.quota.data.Settings
 import com.yusheng.quota.data.Template
+import com.yusheng.quota.net.CodexProxy
 
 /**
  * 查询配置：按厂商能力裁剪字段。
@@ -71,6 +72,8 @@ fun ConfigScreen(
     onLoginCapture: (loginUrl: String, fetchUrl: String) -> Unit,
     onSave: () -> Unit,
 ) {
+    val invalidProxy = template.id == "openai" && cfg.mode == QueryMode.API &&
+        runCatching { CodexProxy.parse(cfg.proxyUrl) }.isFailure
     Column(
         Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(10.dp),
@@ -133,6 +136,10 @@ fun ConfigScreen(
                                     onCfgChange(cfg.copy(accountId = it))
                                 }
                                 Hint(stringResource(R.string.hint_codex_token))
+                                Field(stringResource(R.string.field_codex_proxy), cfg.proxyUrl, error = invalidProxy) {
+                                    onCfgChange(cfg.copy(proxyUrl = it))
+                                }
+                                Hint(stringResource(if (invalidProxy) R.string.err_codex_proxy else R.string.hint_codex_proxy))
                             }
                             "claude" -> Hint(stringResource(R.string.hint_claude_token))
                             "qianwen" -> Hint(stringResource(R.string.hint_qianwen_key))
@@ -250,7 +257,7 @@ fun ConfigScreen(
             }
         }
 
-        Button(onClick = onSave, modifier = Modifier.fillMaxWidth()) {
+        Button(onClick = onSave, enabled = !invalidProxy, modifier = Modifier.fillMaxWidth()) {
             Text(stringResource(R.string.action_save_query))
         }
     }
@@ -261,6 +268,7 @@ private fun Field(
     label: String,
     value: String,
     secret: Boolean = false,
+    error: Boolean = false,
     onChange: (String) -> Unit,
 ) {
     OutlinedTextField(
@@ -268,6 +276,7 @@ private fun Field(
         onValueChange = onChange,
         label = { Text(label, fontSize = 12.sp) },
         singleLine = true,
+        isError = error,
         visualTransformation = if (secret) PasswordVisualTransformation() else VisualTransformation.None,
         modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
     )

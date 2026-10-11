@@ -83,6 +83,8 @@ data class QueryConfig(
     val projectId: String = "",
     /** ChatGPT/Codex 的 chatgpt-account-id（与 access token 成对使用） */
     val accountId: String = "",
+    /** Codex API only: explicit HTTP/SOCKS5 proxy; empty uses the current system network. */
+    val proxyUrl: String = "",
     /** 自定义提取器（可空，留空走内置解析） */
     val script: String = "",
     /** 可选字段路径映射 */
