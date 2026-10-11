@@ -86,6 +86,8 @@ Codex 的「官方 API」配置可填写 `http://主机:端口` 或 `socks5://�
 
 GitHub Actions 在推送 `v*` tag 时先校验 tag 与 `versionName` 一致，并要求四项签名 Secrets（`KEYSTORE_BASE64`、`KEYSTORE_PASSWORD`、`KEY_ALIAS`、`KEY_PASSWORD`）齐全；完整测试与 Lint 通过后构建正式 APK，校验证书与此前正式版一致、生成 SHA-256，并以对应 CHANGELOG 章节创建 Release。签名文件和密码不可提交到仓库。
 
+若 tag 构建因发布脚本或环境问题失败，可在最新 `main` 的「Build APK → Run workflow」填写 `release_tag` 重试；工作流会检出该 tag 的源代码并使用最新发布脚本，无需移动既有 tag。留空仅构建 Debug。
+
 ## License
 
 [MIT](LICENSE) © 2026 彧晟Eason
