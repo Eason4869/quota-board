@@ -1,0 +1,14 @@
+<resources>
+    <string name="codex_connect">Connect Codex with OAuth</string>
+    <string name="codex_reconnect">Reconnect Codex</string>
+    <string name="codex_connected">Codex connected. Tokens renew automatically.</string>
+    <string name="codex_intro">Sign in with ChatGPT in your system browser, then enter the one-time code shown here. The code expires in 15 minutes. If prompted, enable device code authorization in ChatGPT security settings. Only authorize a code you requested in this app.</string>
+    <string name="codex_waiting">Waiting for browser authorization…</string>
+    <string name="codex_copy_code">Copy code</string>
+    <string name="codex_failed">Authorization failed or expired. Check your network/proxy, enable device code authorization in ChatGPT security settings if needed, then retry.</string>
+    <string name="codex_reconnect_error">Codex authorization expired or was revoked. Open account settings and reconnect with OAuth.</string>
+    <string name="codex_network_error">Codex authorization request failed. Check the network/proxy and try again.</string>
+    <string name="codex_usage_error">Codex usage request failed (HTTP %1$d). Check your account and network.</string>
+    <string name="codex_reset_cards">Remaining reset cards</string>
+    <string name="codex_reset_unknown">Not provided</string>
+</resources>

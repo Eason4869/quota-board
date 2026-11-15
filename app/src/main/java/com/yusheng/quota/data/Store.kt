@@ -35,7 +35,10 @@ class Store(context: Context) {
     /** The snapshot and token must be acquired together so import cannot slip between them. */
     fun beginAccountQuerySnapshot(id: String): Pair<Account, Any>? = locked {
         val account = loadAccountsLocked().firstOrNull { it.id == id } ?: return@locked null
-        account to beginAccountQuery(id)
+        val snapshot = if (account.templateId == "openai" && account.query.mode == QueryMode.LOGIN) {
+            account.copy(query = account.query.copy(codexCredentialEpoch = CREDENTIAL_EPOCH))
+        } else account
+        snapshot to beginAccountQuery(id)
     }
 
     fun invalidateAccountQuery(id: String) = locked { QUERY_TOKENS.remove(id); Unit }
@@ -43,8 +46,39 @@ class Store(context: Context) {
     /** Explicit backup restore cancels every pre-import request, including widget-only queries. */
     fun replaceAccounts(accounts: List<Account>): List<Account> = locked {
         QUERY_TOKENS.clear()
+        CREDENTIAL_EPOCH = Any()
         saveAccountsLocked(accounts)
         accounts
+    }
+
+    fun codexCredentialEpoch(): Any = locked { CREDENTIAL_EPOCH }
+
+    fun latestCodexCredentials(fallback: CodexCredentials): CodexCredentials = locked {
+        loadAccountsLocked().firstNotNullOfOrNull { account ->
+            account.query.codexOAuth?.takeIf {
+                account.templateId == "openai" && it.sessionId == fallback.sessionId
+            }
+        } ?: fallback
+    }
+
+    /** Compare-and-set only credentials; an explicit restore invalidates every old lease. */
+    fun rotateCodexCredentials(
+        previous: CodexCredentials,
+        updated: CodexCredentials,
+        epoch: Any = codexCredentialEpoch(),
+    ): Boolean = locked {
+        if (epoch !== CREDENTIAL_EPOCH) return@locked false
+        val current = loadAccountsLocked()
+        var changed = false
+        val next = current.map { account ->
+            if (account.templateId == "openai" && account.query.codexOAuth == previous) {
+                changed = true
+                account.copy(query = account.query.copy(codexOAuth = updated))
+            } else account
+        }
+        // commit waits for disk before a rotating refresh token can be used again.
+        if (changed) check(prefs.edit().putString(KEY_ACCOUNTS, json.encodeToString(next)).commit())
+        changed
     }
 
     fun patchQueryAccount(id: String, token: Any, patch: (Account) -> Account): List<Account>? = locked {
@@ -147,5 +181,6 @@ class Store(context: Context) {
         const val KEY_ACCOUNTS_CORRUPT = "accounts_corrupt"
         val LOCK = Any()
         val QUERY_TOKENS = mutableMapOf<String, Any>()
+        var CREDENTIAL_EPOCH: Any = Any()
     }
 }

@@ -72,7 +72,7 @@ fun ConfigScreen(
     onLoginCapture: (loginUrl: String, fetchUrl: String) -> Unit,
     onSave: () -> Unit,
 ) {
-    val invalidProxy = template.id == "openai" && cfg.mode == QueryMode.API &&
+    val invalidProxy = template.id == "openai" && cfg.mode in listOf(QueryMode.API, QueryMode.LOGIN) &&
         runCatching { CodexProxy.parse(cfg.proxyUrl) }.isFailure
     Column(
         Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp),
@@ -136,6 +136,9 @@ fun ConfigScreen(
                                     onCfgChange(cfg.copy(accountId = it))
                                 }
                                 Hint(stringResource(R.string.hint_codex_token))
+                                Button(onClick = { onLoginCapture(cfg.loginUrl, cfg.url) }) {
+                                    Text(stringResource(R.string.codex_connect))
+                                }
                                 Field(stringResource(R.string.field_codex_proxy), cfg.proxyUrl, error = invalidProxy) {
                                     onCfgChange(cfg.copy(proxyUrl = it))
                                 }
@@ -175,7 +178,13 @@ fun ConfigScreen(
                     }
 
                     QueryMode.LOGIN -> {
-                        if (template.id != "qianwen") {
+                        if (template.id == "openai") {
+                            Text(stringResource(if (cfg.codexOAuth != null) R.string.codex_connected else R.string.codex_intro))
+                            Field(stringResource(R.string.field_codex_proxy), cfg.proxyUrl, error = invalidProxy) {
+                                onCfgChange(cfg.copy(proxyUrl = it))
+                            }
+                            Hint(stringResource(if (invalidProxy) R.string.err_codex_proxy else R.string.hint_codex_proxy))
+                        } else if (template.id != "qianwen") {
                             Field(stringResource(R.string.field_url), cfg.url) { onCfgChange(cfg.copy(url = it)) }
                             Field(stringResource(R.string.field_login_url), cfg.loginUrl) { onCfgChange(cfg.copy(loginUrl = it)) }
                             SecretField(
@@ -187,9 +196,12 @@ fun ConfigScreen(
                         Button(
                             onClick = { onLoginCapture(cfg.loginUrl.ifBlank { cfg.url }, cfg.url) },
                             modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
-                            enabled = cfg.loginUrl.isNotBlank() || cfg.url.isNotBlank(),
-                        ) { Text(stringResource(R.string.action_login_fetch)) }
+                            enabled = !invalidProxy && (template.id == "openai" || cfg.loginUrl.isNotBlank() || cfg.url.isNotBlank()),
+                        ) { Text(stringResource(if (template.id == "openai") {
+                            if (cfg.codexOAuth == null) R.string.codex_connect else R.string.codex_reconnect
+                        } else R.string.action_login_fetch)) }
                         Hint(stringResource(when {
+                            template.id == "openai" -> R.string.codex_intro
                             template.id == "qianwen" -> R.string.qianwen_intro
                             com.yusheng.quota.net.MimoEndpoints.isMimo(cfg.url) -> R.string.hint_mimo_cookie
                             else -> R.string.browser_login_help

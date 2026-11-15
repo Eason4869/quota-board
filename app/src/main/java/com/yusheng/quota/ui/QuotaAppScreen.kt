@@ -110,6 +110,7 @@ private data class LoginRequest(
     val config: QueryConfig,
     val loginUrl: String,
     val fetchUrl: String,
+    val onOAuth: ((com.yusheng.quota.data.CodexCredentials) -> Unit)? = null,
     val onResult: (cookie: String?, json: String?) -> Unit,
 )
 
@@ -259,7 +260,14 @@ fun QuotaAppRoot(vm: QuotaViewModel) {
                                     screen = Screen.CONFIG
                                 },
                                 onLoginCapture = { loginUrl ->
-                                    loginRequest = LoginRequest(account.templateId, account.query, loginUrl, account.query.url) { cookie, json ->
+                                    loginRequest = LoginRequest(account.templateId, account.query, loginUrl, account.query.url,
+                                        onOAuth = { credentials ->
+                                            state.accounts.firstOrNull { it.id == account.id }?.let { current ->
+                                                vm.updateAccount(current.copy(query = current.query.copy(mode = QueryMode.LOGIN,
+                                                    codexOAuth = credentials, cookie = "", apiKey = "", accountId = "")))
+                                                vm.refresh(current.id)
+                                            }
+                                        }) { cookie, json ->
                                         val q = account.query
                                         if (!cookie.isNullOrBlank()) {
                                             vm.updateAccount(account.copy(query = q.copy(
@@ -317,7 +325,11 @@ fun QuotaAppRoot(vm: QuotaViewModel) {
                                 onNameChange = { draftName = it },
                                 onCfgChange = { draftCfg = it },
                                 onLoginCapture = { loginUrl, fetchUrl ->
-                                    loginRequest = LoginRequest(tpl.id, draftCfg, loginUrl, fetchUrl) { cookie, _ ->
+                                    loginRequest = LoginRequest(tpl.id, draftCfg, loginUrl, fetchUrl,
+                                        onOAuth = { credentials ->
+                                            draftCfg = draftCfg.copy(mode = QueryMode.LOGIN, codexOAuth = credentials,
+                                                cookie = "", apiKey = "", accountId = "")
+                                        }) { cookie, _ ->
                                         if (!cookie.isNullOrBlank()) draftCfg = draftCfg.copy(
                                             mode = if (tpl.id == "qianwen") QueryMode.LOGIN else draftCfg.mode,
                                             cookie = cookie,
@@ -410,7 +422,14 @@ fun QuotaAppRoot(vm: QuotaViewModel) {
                     loginRequest = null
                     vm.emit(ctx.getString(R.string.toast_cookie_captured))
                 }
-                if (loginReq.templateId == "qianwen") {
+                if (loginReq.templateId == "openai") {
+                    CodexLoginScreen(loginReq.config.proxyUrl, onCancel = { loginRequest = null },
+                        onAuthorized = { credentials ->
+                            loginReq.onOAuth?.invoke(credentials)
+                            loginRequest = null
+                            vm.emit(ctx.getString(R.string.codex_connected))
+                        })
+                } else if (loginReq.templateId == "qianwen") {
                     QianwenLoginScreen(onCancel = { loginRequest = null }, onCaptured = onCaptured)
                 } else if (com.yusheng.quota.net.MimoEndpoints.isMimo(loginReq.fetchUrl)) {
                     MimoLoginScreen(onCancel = { loginRequest = null }, onCaptured = onCaptured)
@@ -929,7 +948,10 @@ private fun DetailScreen(
         }
 
         // 厂商特有字段：有什么显示什么
-        val extras = result?.extras.orEmpty()
+        val extras = result?.extras.orEmpty().let {
+            if (account.templateId == "openai" && result != null && it.none { extra -> extra.label == "reset_cards" })
+                it + com.yusheng.quota.data.Extra("reset_cards", "") else it
+        }
         if (extras.isNotEmpty()) {
             SectionCard {
                 Column {
@@ -940,8 +962,10 @@ private fun DetailScreen(
                             Modifier.fillMaxWidth().padding(vertical = 4.dp),
                             horizontalArrangement = Arrangement.SpaceBetween,
                         ) {
-                            Text(e.label, fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                            Text(e.value, fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurface)
+                            Text(if (e.label == "reset_cards") stringResource(R.string.codex_reset_cards) else e.label,
+                                fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            Text(if (e.label == "reset_cards" && e.value.isBlank()) stringResource(R.string.codex_reset_unknown) else e.value,
+                                fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurface)
                         }
                     }
                 }
@@ -949,19 +973,21 @@ private fun DetailScreen(
         }
 
         // 登录拉取类账户：还没有登录态时，直接给进入登录的入口
-        if (account.query.mode == QueryMode.LOGIN && account.query.cookie.isBlank()) {
+        if (account.query.mode == QueryMode.LOGIN && (account.templateId == "openai" || account.query.cookie.isBlank())) {
             SectionCard {
                 Column {
-                    Text(stringResource(R.string.login_need_cookie), fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurface)
+                    Text(stringResource(if (account.templateId == "openai") {
+                        if (account.query.codexOAuth == null) R.string.codex_intro else R.string.codex_connected
+                    } else R.string.login_need_cookie), fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurface)
                     Spacer(Modifier.height(8.dp))
                     Button(
                         onClick = {
                             val url = account.query.loginUrl.ifBlank { account.query.url }
-                            if (url.isNotBlank()) onLoginCapture(url)
+                            if (account.templateId == "openai" || url.isNotBlank()) onLoginCapture(url)
                         },
                         modifier = Modifier.fillMaxWidth(),
-                        enabled = account.query.loginUrl.isNotBlank() || account.query.url.isNotBlank(),
-                    ) { Text(stringResource(R.string.action_login_fetch)) }
+                        enabled = account.templateId == "openai" || account.query.loginUrl.isNotBlank() || account.query.url.isNotBlank(),
+                    ) { Text(stringResource(if (account.templateId == "openai") R.string.codex_reconnect else R.string.action_login_fetch)) }
                 }
             }
         }

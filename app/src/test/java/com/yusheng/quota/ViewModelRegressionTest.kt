@@ -33,6 +33,41 @@ class ViewModelRegressionTest {
                    latest: suspend () -> com.yusheng.quota.update.UpdateChecker.ReleaseInfo? = { null }): QuotaViewModel =
         QuotaViewModel(app, query, latest).also { owner.put("vm", it) }
 
+    @Test fun savingADraftAfterBackgroundRenewalKeepsTheNewRefreshToken() = runTest(dispatcher) {
+        val model = vm()
+        val credential = CodexCredentials("session", "access", "old-refresh", "account", 0)
+        val draft = model.addAccount(Templates.byId("openai"), "old-name",
+            QueryConfig(mode = QueryMode.LOGIN, codexOAuth = credential))
+        val renewed = credential.copy(refreshToken = "new-refresh")
+        app.store.rotateCodexCredentials(credential, renewed)
+        model.updateAccount(draft.copy(name = "new-name"))
+        assertEquals("new-name", app.store.loadAccounts().single().name)
+        assertEquals(renewed, app.store.loadAccounts().single().query.codexOAuth)
+    }
+
+    @Test fun foregroundQueryAcceptsResultAfterItsOwnCredentialRenewal() = runTest(dispatcher) {
+        val credential = CodexCredentials("session", "access", "old-refresh", "account", 0)
+        val model = vm(query = { _, cfg, _ ->
+            app.store.rotateCodexCredentials(cfg.codexOAuth!!, credential.copy(refreshToken = "new-refresh"))
+            QueryResult(periods = listOf(Period("weekly", usedPct = 42.0)))
+        })
+        val account = model.addAccount(Templates.byId("openai"), "Codex",
+            QueryConfig(mode = QueryMode.LOGIN, codexOAuth = credential))
+        model.refresh(account.id)
+        runCurrent()
+        assertEquals(42.0, app.store.loadAccounts().single().result!!.periods.single().usedPct!!, 0.0)
+        assertEquals("new-refresh", app.store.loadAccounts().single().query.codexOAuth!!.refreshToken)
+    }
+
+    @Test fun applyingQuotaJsonIgnoresTheTransientOAuthSnapshotLease() = runTest(dispatcher) {
+        val model = vm()
+        val account = model.addAccount(Templates.byId("openai"), "Codex", QueryConfig(mode = QueryMode.LOGIN,
+            codexOAuth = CodexCredentials("session", "access", "refresh", "account", Long.MAX_VALUE)))
+        model.applyJson(account.id, """{"rate_limit_reset_credits":{"available_count":2}}""")
+        runCurrent()
+        assertEquals("2", app.store.loadAccounts().single().result?.extras?.single()?.value)
+    }
+
     @Test fun backgroundResultDuringDragKeepsNewOrderAndLatestBalance() = runTest(dispatcher) {
         val model = vm()
         val a = model.addAccount(Templates.byId("novita"), "a", QueryConfig())

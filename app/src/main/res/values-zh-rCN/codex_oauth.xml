@@ -1,0 +1,14 @@
+<resources>
+    <string name="codex_connect">通过 OAuth 连接 Codex</string>
+    <string name="codex_reconnect">重新授权 Codex</string>
+    <string name="codex_connected">Codex 已连接，令牌将自动续期。</string>
+    <string name="codex_intro">在系统浏览器登录 ChatGPT，输入此处显示的一次性验证码。验证码 15 分钟内有效。若页面提示，请先在 ChatGPT 安全设置中启用设备代码授权。仅授权你在本应用中主动申请的验证码。</string>
+    <string name="codex_waiting">等待浏览器授权…</string>
+    <string name="codex_copy_code">复制验证码</string>
+    <string name="codex_failed">授权失败或已超时。请检查网络和代理，按需在 ChatGPT 安全设置中启用设备代码授权，然后重试。</string>
+    <string name="codex_reconnect_error">Codex 授权已过期或被撤销，请打开账户配置，通过 OAuth 重新授权。</string>
+    <string name="codex_network_error">Codex 授权请求失败，请检查网络和代理后重试。</string>
+    <string name="codex_usage_error">Codex 额度请求失败（HTTP %1$d），请检查账户与网络。</string>
+    <string name="codex_reset_cards">剩余重置卡</string>
+    <string name="codex_reset_unknown">接口未提供</string>
+</resources>
