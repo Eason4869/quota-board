@@ -51,13 +51,12 @@ object Templates {
             nameRes = R.string.vendor_openai,
             descRes = R.string.vendor_openai_desc,
             color = 0xFF10A37F,
-            // 默认走 API：粘贴 Codex CLI 的 access token + 账号 ID，不必在应用内打开 ChatGPT 登录页
-            defaultMode = QueryMode.API,
-            modes = listOf(QueryMode.API, QueryMode.LOGIN, QueryMode.WEBHOOK),
+            defaultMode = QueryMode.LOGIN,
+            modes = listOf(QueryMode.LOGIN, QueryMode.API, QueryMode.WEBHOOK),
             defaults = QueryConfig(
-                mode = QueryMode.API,
+                mode = QueryMode.LOGIN,
                 url = "https://chatgpt.com/backend-api/wham/usage",
-                loginUrl = "https://chatgpt.com/",
+                loginUrl = "https://auth.openai.com/codex/device",
             ),
         ),
         Template(

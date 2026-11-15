@@ -763,6 +763,8 @@ object Parsers {
 
         val plan = str(j, "plan_type", "plan", "planName")
         val bal = num(j, "balance", "total_balance", "credits")
+        val resetCards = (j.optJSONObject("rate_limit_reset_credits")?.opt("available_count") as? Number)
+            ?.toString()?.toLongOrNull()?.takeIf { it >= 0 }
         val first = periods.firstOrNull()
         return QueryResult(
             balance = bal?.let { Balance(it, "$") },
@@ -770,6 +772,7 @@ object Parsers {
                 Subscription(plan ?: "ChatGPT", first?.remain, first?.total, "%", first?.resetAt)
             } else null,
             periods = periods,
+            extras = resetCards?.let { listOf(Extra("reset_cards", it.toString())) }.orEmpty(),
         )
     }
 

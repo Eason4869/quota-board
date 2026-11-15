@@ -245,7 +245,8 @@ class QuotaViewModel internal constructor(
                 if (it.id != account.id) {
                     it
                 } else {
-                    it.copy(name = account.name, templateId = account.templateId, query = account.query)
+                    it.copy(name = account.name, templateId = account.templateId,
+                        query = account.query.preservingRenewedCredentials(it.query))
                 }
             }
         }
@@ -340,7 +341,7 @@ class QuotaViewModel internal constructor(
                 if (queryTokens[id] !== token) return@launch
                 val now = System.currentTimeMillis()
                 val merged = store.patchQueryAccount(id, token) { fresh ->
-                    if (fresh.query != account.query || fresh.templateId != account.templateId) {
+                    if (!fresh.query.sameRequestAs(account.query) || fresh.templateId != account.templateId) {
                         fresh
                     } else if (result != null) {
                         fresh.copy(result = result, lastError = null, updatedAt = now)
@@ -392,7 +393,7 @@ class QuotaViewModel internal constructor(
             val now = System.currentTimeMillis()
             // 同样按 id 合并：解析失败的记录错误、保留旧结果，其余字段以磁盘为准
             val merged = store.patchQueryAccount(id, token) { fresh ->
-                if (fresh.query != account.query || fresh.templateId != account.templateId) fresh else parsed.fold(
+                if (!fresh.query.sameRequestAs(account.query) || fresh.templateId != account.templateId) fresh else parsed.fold(
                     onSuccess = { fresh.copy(result = it, lastError = null, updatedAt = now) },
                     onFailure = { fresh.copy(lastError = it.message, updatedAt = now) },
                 )

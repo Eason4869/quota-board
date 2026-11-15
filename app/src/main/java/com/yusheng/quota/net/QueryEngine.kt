@@ -106,7 +106,9 @@ class QueryEngine(private val context: Context) {
                 cfg = cfg,
             )
             // CookieManager 可读取 HttpOnly Cookie；查询使用账户保存的凭证，避免串号。
-            QueryMode.LOGIN -> if (template.id == "qianwen") {
+            QueryMode.LOGIN -> if (template.id == "openai") {
+                codexOAuthUsage(cfg, timeout)
+            } else if (template.id == "qianwen") {
                 QianwenLoginSession().use { it.quota(cfg.cookie) }
             } else if (MimoEndpoints.isMimo(cfg.url)) {
                 mimoSessionFetch(cfg, timeout)
@@ -403,6 +405,58 @@ class QueryEngine(private val context: Context) {
             }
         }
         throw IllegalStateException(errors.joinToString("\n"))
+    }
+
+    private suspend fun codexOAuthUsage(cfg: QueryConfig, timeoutSec: Int): JSONObject {
+        val store = com.yusheng.quota.data.Store(context)
+        val epoch = cfg.codexCredentialEpoch ?: store.codexCredentialEpoch()
+        val manager = CodexCredentialManager(
+            latest = {
+                if (store.codexCredentialEpoch() !== epoch) throw CancellationException("Accounts restored")
+                store.latestCodexCredentials(it)
+            },
+            persist = { previous, updated ->
+                if (!store.rotateCodexCredentials(previous, updated, epoch))
+                    throw CancellationException("Authorization replaced")
+            },
+        )
+        return try {
+            manager.query(cfg) { credentials ->
+                // OAuth credentials never follow the user-editable legacy API URL.
+                val headers = apiHeaders("openai", cfg.copy(apiKey = credentials.accessToken,
+                    accountId = credentials.accountId))
+                val proxy = CodexProxy.parse(cfg.proxyUrl)
+                val conn = (URL("https://chatgpt.com/backend-api/wham/usage").let {
+                    if (proxy == null) it.openConnection() else it.openConnection(proxy)
+                }) as HttpURLConnection
+                try {
+                    conn.instanceFollowRedirects = false
+                    conn.connectTimeout = timeoutSec * 1000
+                    conn.readTimeout = timeoutSec * 1000
+                    headers.forEach { (key, value) -> conn.setRequestProperty(key, value) }
+                    val status = conn.responseCode
+                    if (status !in 200..299) throw CodexHttpException(status)
+                    val text = conn.inputStream.bufferedReader().use { reader ->
+                        val output = StringBuilder()
+                        val buffer = CharArray(8192)
+                        while (true) {
+                            val size = reader.read(buffer)
+                            if (size < 0) break
+                            check(output.length + size <= 1024 * 1024) { "Codex response too large" }
+                            output.append(buffer, 0, size)
+                        }
+                        output.toString()
+                    }
+                    try { JSONObject(text) } catch (_: Exception) { throw CodexHttpException(502) }
+                } finally { conn.disconnect() }
+            }
+        } catch (e: CodexAuthException) {
+            throw IllegalStateException(context.getString(
+                if (e.reconnect) R.string.codex_reconnect_error else R.string.codex_network_error))
+        } catch (e: CodexHttpException) {
+            throw IllegalStateException(context.getString(
+                if (e.status == 401) R.string.codex_reconnect_error else R.string.codex_usage_error, e.status))
+        }
     }
 
     /**

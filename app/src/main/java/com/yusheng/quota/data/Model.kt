@@ -56,6 +56,16 @@ data class QueryResult(
 /** 查询方式 */
 enum class QueryMode { API, WEBHOOK, LOGIN, AKSK }
 
+/** A device OAuth grant. Backups contain these credentials, just like API keys. */
+@Serializable
+data class CodexCredentials(
+    val sessionId: String,
+    val accessToken: String,
+    val refreshToken: String,
+    val accountId: String,
+    val expiresAtMs: Long,
+)
+
 /** 一个账户的查询配置 */
 @Serializable
 data class QueryConfig(
@@ -83,15 +93,30 @@ data class QueryConfig(
     val projectId: String = "",
     /** ChatGPT/Codex 的 chatgpt-account-id（与 access token 成对使用） */
     val accountId: String = "",
-    /** Codex API only: explicit HTTP/SOCKS5 proxy; empty uses the current system network. */
+    /** Codex API/OAuth: explicit HTTP/SOCKS5 proxy; empty uses the current system network. */
     val proxyUrl: String = "",
+    val codexOAuth: CodexCredentials? = null,
+    /** Captured with a query snapshot; never written to disk or exported. */
+    @kotlinx.serialization.Transient val codexCredentialEpoch: Any? = null,
     /** 自定义提取器（可空，留空走内置解析） */
     val script: String = "",
     /** 可选字段路径映射 */
     val mapBalance: String = "",
     val mapPlan: String = "",
     val timeoutSec: Int = 10,
-)
+) {
+    /** Renewal changes credentials, not the user's query or selected account. */
+    fun sameRequestAs(other: QueryConfig): Boolean {
+        val current = copy(codexCredentialEpoch = null)
+        val expected = other.copy(codexCredentialEpoch = null)
+        return current == expected || (mode == QueryMode.LOGIN && codexOAuth?.sessionId?.isNotBlank() == true &&
+            codexOAuth.sessionId == other.codexOAuth?.sessionId && current.copy(codexOAuth = other.codexOAuth) == expected)
+    }
+
+    fun preservingRenewedCredentials(current: QueryConfig): QueryConfig =
+        if (codexOAuth?.sessionId?.isNotBlank() == true && codexOAuth.sessionId == current.codexOAuth?.sessionId)
+            copy(codexOAuth = current.codexOAuth) else this
+}
 
 /** 用户添加的一个账户实例（同一厂商可重复添加） */
 @Serializable

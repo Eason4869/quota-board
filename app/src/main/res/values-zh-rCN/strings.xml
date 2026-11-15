@@ -194,7 +194,7 @@
     <string name="field_project_id">项目 ID（团队版）</string>
     <string name="field_account_id">账号 ID</string>
     <string name="hint_claude_token">填 Claude Code 的 OAuth access token（`~/.claude/.credentials.json` 里的 `claudeAiOauth.accessToken`；macOS 在钥匙串「Claude Code-credentials」）。不需要登录页。</string>
-    <string name="hint_codex_token">填 Codex CLI 的 access token（`~/.codex/auth.json` → `tokens.access_token`）与账号 ID（同文件 `tokens.account_id`）。不需要登录页。</string>
+    <string name="hint_codex_token">手动模式：填 Codex CLI 的 access token（~/.codex/auth.json → tokens.access_token）与账号 ID（同文件 tokens.account_id）。裸令牌到期后无法续期，建议通过 OAuth 连接。</string>
     <string name="hint_gemini_token">粘贴 Gemini CLI 的 OAuth access token（约 1 小时有效），或 ~/.gemini/oauth_creds.json 的完整内容 / 其中 1// 开头的 refresh_token（自动续期）；有项目 ID 就一并填上。不需要登录页。</string>
     <string name="err_gemini_need_token">请先粘贴 Gemini 的访问令牌：access token、~/.gemini/oauth_creds.json 完整内容或 1// 开头的 refresh_token。</string>
     <string name="err_gemini_refresh">Gemini 令牌续期失败：%1$s。请确认粘贴的是完整 oauth_creds.json 或未失效的 refresh_token。</string>

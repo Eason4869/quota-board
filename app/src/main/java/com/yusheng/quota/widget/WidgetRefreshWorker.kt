@@ -42,7 +42,7 @@ internal suspend fun refreshWidgetAccount(
         null
     }
     store.patchQueryAccount(id, token) { fresh ->
-        if (fresh.query != snapshot.query || fresh.templateId != snapshot.templateId ||
+        if (!fresh.query.sameRequestAs(snapshot.query) || fresh.templateId != snapshot.templateId ||
             fresh.updatedAt != snapshot.updatedAt || fresh.result != snapshot.result) fresh
         else fresh.copy(result = result ?: fresh.result, lastError = error, updatedAt = System.currentTimeMillis())
     }
