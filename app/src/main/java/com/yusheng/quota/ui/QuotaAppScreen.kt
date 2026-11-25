@@ -431,7 +431,7 @@ fun QuotaAppRoot(vm: QuotaViewModel) {
                         })
                 } else if (loginReq.templateId == "qianwen") {
                     QianwenLoginScreen(onCancel = { loginRequest = null }, onCaptured = onCaptured)
-                } else if (com.yusheng.quota.net.MimoEndpoints.isMimo(loginReq.fetchUrl)) {
+                } else if (loginReq.templateId == "xiaomi" || com.yusheng.quota.net.MimoEndpoints.isMimo(loginReq.fetchUrl)) {
                     MimoLoginScreen(onCancel = { loginRequest = null }, onCaptured = onCaptured)
                 } else BrowserLoginScreen(
                     templateId = loginReq.templateId,
@@ -992,10 +992,10 @@ private fun DetailScreen(
             }
         }
 
-        // 小米：额度只能靠登录态，把必需的 Cookie 字段摆出来，点一下整段复制
+        // 小米：按当前查询方式展示 Key 或 Cookie 使用说明。
         if (account.templateId == "xiaomi") {
             val appCtx = LocalContext.current
-            val hintText = stringResource(R.string.hint_mimo_cookie)
+            val hintText = stringResource(if (account.query.mode == QueryMode.LOGIN) R.string.hint_mimo_cookie else R.string.hint_mimo_key)
             SectionCard {
                 Text(
                     text = hintText,

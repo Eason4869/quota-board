@@ -1,6 +1,19 @@
 # MiMo 登录与查询
 
-MiMo 的 Token Plan 和按量余额使用平台会话，模型调用 Key 不能替代该会话。
+从 v1.4.1 起，新建 MiMo 账户默认使用官方 API Key 查询，方式与 cc-switch 对齐：
+
+| 凭证 | GET 地址 | 展示内容 |
+| --- | --- | --- |
+| `tp-` 开头的 Token Plan 专属 Key | `https://token-plan-cn.xiaomimimo.com/v1/platform/token_plan` | `quota.total_credits`、`used_credits`、`remaining_credits`，单位 Credits；`period.end_at` 是 UTC 周期结束时间 |
+| 按量 API Key | `https://api.xiaomimimo.com/v1/platform/balance` | `balance_infos[].total_available - frozen_balance`，保留实际币种与负余额 |
+
+鉴权为 `Authorization: Bearer <API Key>`。应用根据 Key 类型选择固定官方接口，不向控制台发送模型 Key，也不会在 Key 失败后偷偷切换 Cookie 账户。Token Plan 可能为月付或年付，显示为套餐额度，不把积分当 tokens 或强行标成月度窗口。两个 Key 属于不同查询范围；如需同时查看积分和余额，请分别添加两个 MiMo 账户。
+
+已有 Cookie 账户保持原配置。要切换 Key，在配置页选择「官方 API」，粘贴对应 Key 并保存；无需重新登录。Key 失败时检查是否误用了另一类 Key，或到官方平台重新创建。
+
+依据：[小米套餐余量 API](https://mimo.mi.com/docs/zh-CN/api/asset/credits-get)、[余额 API](https://mimo.mi.com/docs/zh-CN/api/asset/balance-get)，以及 cc-switch 的 `services/coding_plan.rs` / `services/balance.rs`。
+
+以下是保留的 Cookie 登录方式。控制台接口使用平台会话，模型调用 Key 不能替代这些控制台接口的 Cookie。
 原来的内置 WebView 在部分设备打开即白屏；当前设备没有连接到开发环境，不能确定其渲染故障的底层原因。
 
 MiMo 入口改为原生界面，使用小米账号官网当前的二维码授权流程：

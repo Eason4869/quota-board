@@ -10,7 +10,7 @@
 
 ## 当前版本
 
-**[v1.4.0](https://github.com/Eason4869/quota-board/releases/tag/v1.4.0)**：新增 Codex OAuth 设备授权、自动续期与剩余重置卡数量显示。厂商接口可能随官方改动而失效，真实额度以官方页面为准。版本变更见 [CHANGELOG](CHANGELOG.md)。
+**[v1.4.1](https://github.com/Eason4869/quota-board/releases/tag/v1.4.1)**：小米 MiMo 默认使用 API Key 查询 Token Plan 积分或按量余额；核对全部厂商入口，修复 Gemini 用量结构、MiniMax 耗尽周额度、智谱按量回退及余额错误显示。厂商接口可能随官方改动而失效，真实额度以官方页面为准。版本变更见 [CHANGELOG](CHANGELOG.md)，逐厂商核对见 [查询入口说明](docs/provider-query-audit.md)。
 
 - 用之前建议先用「设置 → 备份与恢复 → 导出」存一份 JSON 备份，换版本装不回去时能捞回来。
 - 遇到问题、有想加的功能，**欢迎直接提 [Issue](https://github.com/Eason4869/quota-board/issues)**，看到就会跟。
@@ -31,7 +31,7 @@
 
 | 查询方式 | 厂商 |
 |------|------|
-| 官方 API | DeepSeek、OpenRouter、SiliconFlow、StepFun、Novita、Kimi、智谱 GLM、MiniMax、OpenCode Go、Moonshot |
+| 官方 API | 小米 MiMo、DeepSeek、OpenRouter、SiliconFlow、StepFun、Novita、Kimi、智谱 GLM、MiniMax、OpenCode Go、Moonshot |
 | 订阅用量（令牌） | ChatGPT / Codex、Claude、Gemini、GitHub Copilot |
 | AK/SK 签名 | 火山方舟 Agent Plan / Coding Plan |
 | 云函数 | 任意厂商（自建函数或代理） |
@@ -66,7 +66,9 @@ Codex 的「官方 API」配置可填写 `http://主机:端口` 或 `socks5://�
 - **ChatGPT / Codex**：新账户默认选择「登录」。点击「通过 OAuth 连接 Codex」，复制验证码并在系统浏览器登录、授权，返回应用后保存账户。若提示设备代码授权未开启，请先在 ChatGPT 安全设置中启用。应用会自动续期；授权撤销或 refresh token 失效时，请重新授权。已有「官方 API」账户可直接点击 OAuth 连接按钮迁移；仅手动粘贴的 access token 无法续期。登录模式中的账户代理同时用于设备授权、令牌交换、续期和额度查询。浏览器使用手机自己的网络设置，应用内代理不会修改浏览器代理。
 - **Codex 重置卡**：详情页与 4×2 小组件显示官方额度响应的 `rate_limit_reset_credits.available_count`，明确返回 0 时显示 0；未提供时详情显示「接口未提供」。只查询数量，不会使用重置卡。OAuth 凭据也包含在手动 JSON 导出中，请勿分享备份。
 - **云函数**：网络受限、需要固定出口 IP，或希望凭证只放服务端时，把查询放到自己的函数里，地址填函数 URL 即可。
-- **MiMo**：在系统浏览器确认小米二维码授权，返回应用后同时查询 Token Plan 和按量余额；也可导入 MiMo 平台 Cookie。
+- **MiMo（推荐 API Key）**：新账户选择「官方 API」，粘贴 `tp-` 开头的 Token Plan 专属 Key 查询 Credits；按量 Key 查询扣除冻结金额后的可用余额。应用自动选用对应的官方接口。需要两种数据时分别添加两个账户。已有 Cookie 账户仍可使用；切换时只需改为「官方 API」并填写 Key。套餐周期按官方返回显示，月付和年付均不强制当成月度 tokens。详见 [MiMo 查询与登录](docs/mimo-login.md)。
+- **Gemini / Antigravity**：使用 OAuth access token 或可续期的 `oauth_creds.json`；未填项目 ID 时尝试自动取得托管项目。兼容现行分组额度与旧模型桶，分别保留不同模型额度池。
+- **智谱 / MiniMax**：智谱个人账户明确没有 Coding Plan 时自动查询按量余额，团队版仍需组织与项目 ID；国际站请填写对应的 `api.z.ai` / `api.minimax.io` 查询地址。MiniMax 同时兼容现行 Token Plan 与旧 Coding Plan 入口。
 - **千问 Token Plan**：选择「登录」并在系统浏览器完成设备授权。`platform.qianwenai.com` 的模型 API Key 不能查询套餐额度；旧账号若仍为「官方 API」模式，请切换为「登录」。
 - **其他登录拉取**：系统浏览器 Cookie 不会自动共享给本应用。登录后需导入额度接口请求中的 Cookie，请勿粘贴账号密码。
 

@@ -220,7 +220,8 @@
     <string name="hint_qianwen_key">模型 API Key 无法查询 Token Plan 额度。请切换到「登录」，在浏览器中授权。</string>
     <string name="hint_moonshot_key">填 Moonshot 开放平台（platform.moonshot.cn）的 API Key。</string>
     <string name="hint_copilot_token">填有 Copilot 权限的 GitHub OAuth token（`gh auth token` 即可拿到）。</string>
-    <string name="hint_mimo_cookie">通过系统浏览器或扫码连接 MiMo，同时查询 Token Plan 和按量余额；也可导入包含 api-platform_serviceToken 与 userId 的平台 Cookie。</string>
+    <string name="hint_mimo_cookie">推荐使用 API Key。仍可通过登录同时查询 Token Plan 与按量余额；也可导入包含 api-platform_serviceToken 与 userId 的平台 Cookie。</string>
+    <string name="hint_mimo_key">粘贴 tp- 开头的 Token Plan 专属 Key 查询积分，或按量 API Key 查询可用余额；自动按 Key 类型选择接口。如需同时展示，请分别添加两个账户。已有 Cookie 登录方式仍可使用。</string>
     <string name="mimo_connect">连接 MiMo</string>
     <string name="mimo_back">返回</string>
     <string name="mimo_intro">连接小米账号，读取 Token Plan 套餐用量和按量余额。</string>

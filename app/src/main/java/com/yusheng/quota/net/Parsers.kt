@@ -32,7 +32,7 @@ object Parsers {
         mapPlan: String,
         context: Context,
     ): QueryResult {
-        val result = when (templateId) {
+        val result = try { when (templateId) {
             "deepseek" -> deepSeek(json)
             "openrouter" -> openRouter(json)
             "siliconflow" -> siliconFlow(json)
@@ -51,6 +51,12 @@ object Parsers {
             "gemini" -> gemini(json)
             "openai" -> openAi(json)
             else -> generic(json, "", "")
+        } } catch (e: IllegalStateException) {
+            // 自定义字段映射可以替代厂商结构，但不能掩盖明确的业务错误。
+            val failed = (json.has("error") && !json.isNull("error")) || json.opt("success") == false ||
+                (json.optJSONObject("base_resp")?.optInt("status_code", 0) ?: 0) != 0
+            if ((mapBalance.isBlank() && mapPlan.isBlank()) || failed) throw e
+            QueryResult()
         }
         if (mapBalance.isBlank() && mapPlan.isBlank()) return result
         val payload = json.optJSONObject("data")?.optJSONObject("result")
@@ -75,6 +81,7 @@ object Parsers {
         val infos = j.optJSONArray("balance_infos") ?: JSONArray()
         val rows = (0 until infos.length()).mapNotNull { infos.optJSONObject(it) }
         val cny = rows.firstOrNull { it.optString("currency") == "CNY" } ?: rows.firstOrNull()
+        check(num(cny, "total_balance") != null) { "DeepSeek: 缺少有效余额" }
         val available = j.optBoolean("is_available", true)
         return QueryResult(
             balance = cny?.let {
@@ -96,9 +103,10 @@ object Parsers {
     /** GET /api/v1/credits → data{total_credits,total_usage} */
     private fun openRouter(j: JSONObject): QueryResult {
         val d = j.optJSONObject("data") ?: j
-        val total = num(d, "total_credits") ?: 0.0
-        val used = num(d, "total_usage") ?: 0.0
-        val remain = (total - used).coerceAtLeast(0.0)
+        val total = checkNotNull(num(d, "total_credits")) { "OpenRouter: 缺少有效总额度" }
+        val used = checkNotNull(num(d, "total_usage")) { "OpenRouter: 缺少有效已用额度" }
+        val remain = total - used
+        check(remain.isFinite()) { "OpenRouter: 无效余额" }
         return QueryResult(
             balance = Balance(remain, "$"),
             subscription = Subscription("Credits", remain, total, "USD"),
@@ -118,9 +126,9 @@ object Parsers {
             ?: num(d, "amount")
             ?: num(d, "remaining")
             ?: num(d, "chargeBalance")
-            ?: 0.0
+            ?: error("SiliconFlow: 缺少有效余额")
         return QueryResult(
-            balance = Balance(amount, "¥"),
+            balance = Balance(amount, if (j.optString("_currency") == "USD") "$" else "¥"),
             extras = buildList {
                 num(d, "chargeBalance")?.let { add(Extra("chargeBalance", fmt(it))) }
                 num(d, "totalBalance")?.let { add(Extra("totalBalance", fmt(it))) }
@@ -131,7 +139,7 @@ object Parsers {
 
     /** GET https://api.stepfun.com/v1/accounts → {balance, total_cash_balance, total_voucher_balance} */
     private fun stepFun(j: JSONObject): QueryResult {
-        val balance = num(j, "balance") ?: 0.0
+        val balance = checkNotNull(num(j, "balance")) { "StepFun: 缺少有效余额" }
         return QueryResult(
             balance = Balance(balance, "¥"),
             extras = buildList {
@@ -143,7 +151,7 @@ object Parsers {
 
     /** GET https://api.novita.ai/v3/user/balance → availableBalance（单位 0.0001 USD） */
     private fun novita(j: JSONObject): QueryResult {
-        val raw = num(j, "availableBalance") ?: 0.0
+        val raw = checkNotNull(num(j.optJSONObject("data") ?: j, "availableBalance")) { "Novita: 缺少有效余额" }
         val usd = raw / 10000.0
         return QueryResult(
             balance = Balance(usd, "$"),
@@ -154,7 +162,7 @@ object Parsers {
     /** GET https://api.moonshot.cn/v1/users/me/balance → data{available_balance,...} */
     private fun moonshot(j: JSONObject): QueryResult {
         val d = j.optJSONObject("data") ?: j
-        val amount = num(d, "available_balance", "availableBalance", "balance") ?: 0.0
+        val amount = checkNotNull(num(d, "available_balance", "availableBalance", "balance")) { "Moonshot: 缺少有效余额" }
         return QueryResult(
             balance = Balance(amount, "¥"),
             extras = buildList {
@@ -210,6 +218,7 @@ object Parsers {
      *   balance → `data.balance` / `cashBalance` / `giftBalance`
      */
     private fun mimo(j: JSONObject, context: Context): QueryResult {
+        if (!j.has("mimo") && !j.has("usage") && !j.has("balance")) return MimoApi.parse(j)
         val root = j.optJSONObject("mimo") ?: j
         val usage = root.optJSONObject("usage")?.optJSONObject("data")
         val detail = root.optJSONObject("detail")?.optJSONObject("data")
@@ -446,6 +455,9 @@ object Parsers {
             )
         }
         val data = j.optJSONObject("data") ?: j
+        num(data, "availableBalance", "balance")?.let {
+            return QueryResult(balance = Balance(it, if (j.optString("_currency") == "USD") "$" else "¥"))
+        }
         val limits = data.optJSONArray("limits")
 
         var fiveHour: Entry? = null
@@ -469,7 +481,7 @@ object Parsers {
         }
 
         unclassified
-            .sortedWith(compareByDescending<Entry> { it.resetMs != null }.thenBy { it.resetMs ?: 0L })
+            .sortedWith(compareBy<Entry> { it.resetMs != null }.thenBy { it.resetMs ?: 0L })
             .forEach { entry ->
                 if (fiveHour == null) fiveHour = entry else if (weekly == null) weekly = entry
             }
@@ -498,15 +510,18 @@ object Parsers {
      *
      * 字段是「剩余百分比」：`model_remains[]` 里取 `model_name == "general"`（跳过 video 等），
      * 5 小时窗口取 `current_interval_remaining_percent` / `end_time`；
-     * 周桶只在 `current_weekly_status == 1` 时有效（3 表示该套餐没有周限额）。
+     * 周桶 status=1 正常、2 已耗尽均展示；3 表示没有周限额。
      */
     private fun miniMax(j: JSONObject): QueryResult {
+        j.optJSONObject("base_resp")?.let {
+            check(it.optInt("status_code", -1) == 0) { "MiniMax: ${it.optString("status_msg")}" }
+        }
         val root = j.optJSONObject("data") ?: j
-        val remains = root.optJSONArray("model_remains") ?: return QueryResult()
+        val remains = checkNotNull(root.optJSONArray("model_remains")) { "MiniMax: 未取得套餐额度" }
         val item = (0 until remains.length())
             .mapNotNull { remains.optJSONObject(it) }
             .firstOrNull { it.optString("model_name") == "general" }
-            ?: return QueryResult()
+            ?: error("MiniMax: 未取得 general 套餐额度")
 
         val periods = mutableListOf<Period>()
         num(item, "current_interval_remaining_percent")?.let { remainPct ->
@@ -518,7 +533,7 @@ object Parsers {
                 resetAt = resetTime(item.opt("end_time")),
             )
         }
-        if (longOrNull(item.opt("current_weekly_status")) == 1L) {
+        if (longOrNull(item.opt("current_weekly_status")) in listOf(1L, 2L)) {
             num(item, "current_weekly_remaining_percent")?.let { remainPct ->
                 periods += Period(
                     label = "weekly",
@@ -529,6 +544,7 @@ object Parsers {
                 )
             }
         }
+        check(periods.isNotEmpty()) { "MiniMax: 未取得有效的套餐额度" }
         val first = periods.firstOrNull()
         return QueryResult(
             subscription = first?.let {
@@ -673,16 +689,25 @@ object Parsers {
     }
 
     private fun gemini(j: JSONObject): QueryResult {
-        // 现行接口：{buckets:[{modelId?, window?, remainingFraction(0-1), resetTime?}]}
-        j.optJSONArray("buckets")?.let { buckets ->
+        // Antigravity summary 使用 groups[].buckets[]；Gemini CLI 旧接口使用 buckets[]。
+        val groups = j.optJSONArray("groups")
+        val groupedBuckets = groups?.let {
+            JSONArray().apply {
+                for (i in 0 until it.length()) {
+                    val buckets = it.optJSONObject(i)?.optJSONArray("buckets") ?: continue
+                    for (k in 0 until buckets.length()) buckets.optJSONObject(k)?.let { bucket -> put(bucket) }
+                }
+            }
+        }
+        (groupedBuckets ?: j.optJSONArray("buckets"))?.let { buckets ->
             val periods = mutableListOf<Period>()
             for (i in 0 until buckets.length()) {
                 val b = buckets.optJSONObject(i) ?: continue
                 val remainFraction = num(b, "remainingFraction")
                 val remainAmount = num(b, "remainingAmount")
-                val usedPct = remainFraction?.let { (1.0 - it) * 100.0 } ?: continue
-                val raw = str(b, "window", "modelId", "tokenType") ?: "bucket${i + 1}"
-                val label = when {
+                val usedPct = remainFraction?.let { ((1.0 - it) * 100.0).coerceIn(0.0, 100.0) } ?: continue
+                val raw = str(b, "bucketId", "window", "modelId", "tokenType") ?: "bucket${i + 1}"
+                val label = if (groupedBuckets != null) raw else when {
                     raw.contains("5h", true) || raw.contains("hour", true) -> "5h"
                     raw.contains("week", true) || raw.contains("7d", true) -> "weekly"
                     raw.contains("month", true) -> "monthly"
@@ -824,8 +849,8 @@ object Parsers {
         for (k in keys) {
             if (!o.has(k) || o.isNull(k)) continue
             when (val v = o.get(k)) {
-                is Number -> return v.toDouble()
-                is String -> v.trim().toDoubleOrNull()?.let { return it }
+                is Number -> v.toDouble().takeIf { it.isFinite() }?.let { return it }
+                is String -> v.trim().toDoubleOrNull()?.takeIf { it.isFinite() }?.let { return it }
             }
         }
         return null

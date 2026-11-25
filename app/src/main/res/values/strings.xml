@@ -226,7 +226,8 @@
     <string name="hint_qianwen_key">A model API Key cannot read Token Plan quota. Switch to Login and authorize in your browser.</string>
     <string name="hint_moonshot_key">Paste a Moonshot (platform.moonshot.cn) API key.</string>
     <string name="hint_copilot_token">Paste a GitHub OAuth token with Copilot access (`gh auth token`).</string>
-    <string name="hint_mimo_cookie">Connect MiMo using your browser or QR approval to query Token Plan and pay-as-you-go balance. You can also import a platform Cookie containing api-platform_serviceToken and userId.</string>
+    <string name="hint_mimo_cookie">API Key is recommended. Cookie login remains available to query Token Plan and pay-as-you-go together; import a platform Cookie containing api-platform_serviceToken and userId if needed.</string>
+    <string name="hint_mimo_key">Paste a tp- Token Plan key to query Credits, or a pay-as-you-go key to query available balance. The endpoint is selected automatically by key type. Use separate accounts to display both. Existing Cookie login is still available.</string>
     <string name="mimo_connect">Connect MiMo</string>
     <string name="mimo_back">Back</string>
     <string name="mimo_intro">Connect your Xiaomi account to read Token Plan usage and pay-as-you-go balance.</string>

@@ -124,7 +124,9 @@ fun ConfigScreen(
             Column {
                 when (cfg.mode) {
                         QueryMode.API -> {
-                        Field(stringResource(R.string.field_url), cfg.url) { onCfgChange(cfg.copy(url = it)) }
+                        if (template.id != "xiaomi") {
+                            Field(stringResource(R.string.field_url), cfg.url) { onCfgChange(cfg.copy(url = it)) }
+                        }
                         SecretField(
                             label = stringResource(R.string.field_api_key),
                             value = cfg.apiKey,
@@ -146,6 +148,7 @@ fun ConfigScreen(
                             }
                             "claude" -> Hint(stringResource(R.string.hint_claude_token))
                             "qianwen" -> Hint(stringResource(R.string.hint_qianwen_key))
+                            "xiaomi" -> Hint(stringResource(R.string.hint_mimo_key))
                             "gemini" -> {
                                 Field(stringResource(R.string.field_project_id), cfg.projectId) {
                                     onCfgChange(cfg.copy(projectId = it))
@@ -203,7 +206,7 @@ fun ConfigScreen(
                         Hint(stringResource(when {
                             template.id == "openai" -> R.string.codex_intro
                             template.id == "qianwen" -> R.string.qianwen_intro
-                            com.yusheng.quota.net.MimoEndpoints.isMimo(cfg.url) -> R.string.hint_mimo_cookie
+                            template.id == "xiaomi" || com.yusheng.quota.net.MimoEndpoints.isMimo(cfg.url) -> R.string.hint_mimo_cookie
                             else -> R.string.browser_login_help
                         }))
                     }

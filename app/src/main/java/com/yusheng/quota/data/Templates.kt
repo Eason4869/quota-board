@@ -155,13 +155,12 @@ object Templates {
             nameRes = R.string.vendor_xiaomi,
             descRes = R.string.vendor_xiaomi_desc,
             color = 0xFFFF6900,
-            defaultMode = QueryMode.LOGIN,
-            modes = listOf(QueryMode.LOGIN, QueryMode.WEBHOOK),
+            defaultMode = QueryMode.API,
+            modes = listOf(QueryMode.API, QueryMode.LOGIN, QueryMode.WEBHOOK),
             defaults = QueryConfig(
-                mode = QueryMode.LOGIN,
-                // 直接填额度接口：登录页地址由接口自己返回的 loginUrl 决定，
-                // 比猜控制台深链可靠 —— 深链要先跑通 SPA 才谈得上登录，老内核上就是白屏。
-                url = "https://platform.xiaomimimo.com/api/v1/tokenPlan/usage",
+                mode = QueryMode.API,
+                // tp- Key 自动使用 Token Plan 接口；按量 Key 查询余额。
+                url = "https://api.xiaomimimo.com/v1/platform/balance",
                 loginUrl = "https://platform.xiaomimimo.com/console/plan-manage",
             ),
         ),

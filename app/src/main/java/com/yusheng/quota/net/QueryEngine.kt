@@ -110,7 +110,7 @@ class QueryEngine(private val context: Context) {
                 codexOAuthUsage(cfg, timeout)
             } else if (template.id == "qianwen") {
                 QianwenLoginSession().use { it.quota(cfg.cookie) }
-            } else if (MimoEndpoints.isMimo(cfg.url)) {
+            } else if (template.id == "xiaomi" || MimoEndpoints.isMimo(cfg.url)) {
                 mimoSessionFetch(cfg, timeout)
             } else {
                 requestJson(
@@ -123,7 +123,13 @@ class QueryEngine(private val context: Context) {
                 )
             }
             QueryMode.API -> {
-                if (template.id == "siliconflow") {
+                if (template.id == "xiaomi") {
+                    MimoApi.fetch(cfg.apiKey) { url, headers ->
+                        requestJson("GET", url, headers, "", timeout, QueryMode.API, followRedirects = false)
+                    }
+                } else if (template.id == "zhipu") {
+                    zhipuUsageWithFallback(cfg, timeout)
+                } else if (template.id == "siliconflow") {
                     siliconFlowWithFallback(cfg, timeout)
                 } else if (template.id == "openai") {
                     openAiUsageWithFallback(cfg, timeout)
@@ -180,7 +186,10 @@ class QueryEngine(private val context: Context) {
                     body = "",
                     timeoutSec = timeoutSec,
                     mode = if (isConsole) QueryMode.LOGIN else QueryMode.API,
-                )
+                ).also {
+                    if (java.net.URI(url).host.equals("api.siliconflow.com", true)) it.put("_currency", "USD")
+                    if (usesNativeParser(cfg)) Parsers.parse("siliconflow", it, "", "", context)
+                }
             } catch (e: Exception) {
                 val m = e.message.orEmpty()
                 if (m.contains("401") || m.contains("403") || m.contains("invalid", true)) {
@@ -202,6 +211,9 @@ class QueryEngine(private val context: Context) {
     }
 
     // ── 自定义提取器（在 WebView 里执行配置的 JS）──────────
+    private fun usesNativeParser(cfg: QueryConfig): Boolean =
+        cfg.script.isBlank() && cfg.mapBalance.isBlank() && cfg.mapPlan.isBlank()
+
     private suspend fun runScriptExtractor(cfg: QueryConfig, json: JSONObject): QueryResult? {
         val code = cfg.script
         if (code.isBlank()) return null
@@ -223,6 +235,26 @@ class QueryEngine(private val context: Context) {
             context.getString(R.string.err_mimo_need_login, MimoEndpoints.REQUIRED_COOKIES)
         }
         return MimoLoginSession().use { it.quota(cfg.cookie, timeoutSec) }
+    }
+
+    /** 只有明确的「个人账户无套餐」才改查余额；鉴权失败和团队账户不回退。 */
+    private fun zhipuUsageWithFallback(cfg: QueryConfig, timeoutSec: Int): JSONObject {
+        val headers = apiHeaders("zhipu", cfg)
+        val body = requestJson("GET", apiUrl("zhipu", cfg), headers, "", timeoutSec, QueryMode.API)
+        val message = body.optString("msg").lowercase()
+        val compact = message.replace(Regex("[\\s_-]"), "")
+        val noPlan = body.opt("success") == false && compact.contains("codingplan") &&
+            listOf("不存在", "没有", "未开通", "not exist", "not found", "not have", "doesn't have", "no coding plan", "not subscribed")
+                .any { message.contains(it) }
+        if (!noPlan || cfg.orgId.isNotBlank() || cfg.projectId.isNotBlank()) return body
+        val uri = java.net.URI(cfg.url)
+        val origin = "${uri.scheme}://${uri.rawAuthority}"
+        return requestJson("GET", "$origin/api/biz/account/query-customer-account-report",
+            headers, "", timeoutSec, QueryMode.API, followRedirects = false).also {
+            if (uri.host.equals("api.z.ai", true)) it.put("_currency", "USD")
+            val parsed = Parsers.parse("zhipu", it, "", "", context)
+            check(parsed.balance != null) { "Zhipu: 未取得有效余额" }
+        }
     }
 
     // ── 火山 AK/SK 签名查询 ────────────────────────────────
@@ -360,6 +392,7 @@ class QueryEngine(private val context: Context) {
                 headers["X-GitHub-Api-Version"] = "2022-11-28"
             }
             "zhipu" -> {
+                headers["Content-Type"] = "application/json"
                 headers["Accept-Language"] = "en-US,en"
                 if (cfg.orgId.isNotBlank()) headers["bigmodel-organization"] = cfg.orgId.trim()
                 if (cfg.projectId.isNotBlank()) headers["bigmodel-project"] = cfg.projectId.trim()
@@ -473,9 +506,25 @@ class QueryEngine(private val context: Context) {
         }
         val bearer = geminiRefreshTokenOf(rawToken)?.let { refreshGeminiAccessToken(it) } ?: rawToken
         val headers = apiHeaders("gemini", cfg.copy(apiKey = bearer))
-        val body = JSONObject().apply {
-            if (cfg.projectId.isNotBlank()) put("project", cfg.projectId.trim())
-        }.toString()
+        val configuredBase = cfg.url.substringBeforeLast(':', "")
+        val project = cfg.projectId.trim().ifBlank {
+            if (!configuredBase.endsWith("/v1internal")) "" else try {
+                val assist = requestJson("POST", "$configuredBase:loadCodeAssist", headers,
+                    """{"metadata":{"ideType":"ANTIGRAVITY"}}""", timeoutSec, QueryMode.API, followRedirects = false)
+                val field = assist.opt("cloudaicompanionProject")
+                when (field) {
+                    is String -> field
+                    is JSONObject -> field.optString("id")
+                    else -> ""
+                }
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: HttpStatusException) {
+                if (e.status == 401) throw e
+                ""
+            } catch (_: Exception) { "" }
+        }
+        val body = JSONObject().apply { if (project.isNotBlank()) put("project", project) }.toString()
         val candidates = LinkedHashSet<String>().apply {
             add(cfg.url)
             add("https://daily-cloudcode-pa.googleapis.com/v1internal:retrieveUserQuotaSummary")
@@ -488,7 +537,13 @@ class QueryEngine(private val context: Context) {
         var unauthorized = false
         for (url in candidates) {
             try {
-                return requestJson("POST", url, headers, body, timeoutSec, QueryMode.API)
+                return requestJson("POST", url, headers, body, timeoutSec, QueryMode.API, followRedirects = false).also {
+                    if (usesNativeParser(cfg)) {
+                        check(Parsers.parse("gemini", it, "", "", context).periods.isNotEmpty()) { "Gemini: 未取得有效额度" }
+                    }
+                }
+            } catch (e: CancellationException) {
+                throw e
             } catch (e: Exception) {
                 val message = e.message.orEmpty()
                 if (message.contains("401")) unauthorized = true
@@ -505,15 +560,17 @@ class QueryEngine(private val context: Context) {
 
     /**
      * MiniMax 用量：现行官方路由 `/v1/token_plan/remains`，旧路由
-     * `/v1/api/openplatform/coding_plan/remains` 仍在服务且**字段语义相反**，
-     * 两个都试，解析层按字段名分别处理（见 Parsers.miniMax）。
+     * `/v1/api/openplatform/coding_plan/remains` 仍作为备用。
+     * 只有取得有效额度才成功，HTTP 200 的业务错误也要继续尝试备用入口。
      */
     private suspend fun miniMaxUsageWithFallback(cfg: QueryConfig, timeoutSec: Int): JSONObject {
         val base = cfg.url.ifBlank { "https://api.minimaxi.com/v1/token_plan/remains" }
-        val host = runCatching { java.net.URI(base) }.getOrNull()
-            ?.let { "${it.scheme}://${it.host}" } ?: "https://api.minimaxi.com"
+        val uri = runCatching { java.net.URI(base) }.getOrNull()
+        val host = if (uri?.host.equals("api.minimax.cn", true)) "https://api.minimaxi.com"
+            else uri?.let { "${it.scheme}://${it.rawAuthority}" } ?: "https://api.minimaxi.com"
         val candidates = LinkedHashSet<String>().apply {
-            add(base)
+            // 新国内推理域名不提供额度；保留同区域 Key 的查询服务。
+            if (!uri?.host.equals("api.minimax.cn", true)) add(base)
             add("$host/v1/token_plan/remains")
             add("$host/v1/api/openplatform/coding_plan/remains")
         }.filter { it.isNotBlank() }
@@ -521,7 +578,10 @@ class QueryEngine(private val context: Context) {
         val errors = mutableListOf<String>()
         for (url in candidates) {
             try {
-                return requestJson("GET", url, apiHeaders("minimax", cfg), "", timeoutSec, QueryMode.API)
+                return requestJson("GET", url, apiHeaders("minimax", cfg), "", timeoutSec, QueryMode.API, followRedirects = false)
+                    .also { if (usesNativeParser(cfg)) Parsers.parse("minimax", it, "", "", context) }
+            } catch (e: CancellationException) {
+                throw e
             } catch (e: Exception) {
                 errors += "/${url.substringAfter("/v1", "").take(34)} → ${e.message}"
             }
@@ -539,7 +599,10 @@ class QueryEngine(private val context: Context) {
         val errors = mutableListOf<String>()
         for (url in candidates) {
             try {
-                return requestJson("GET", url, apiHeaders("novita", cfg), "", timeoutSec, QueryMode.API)
+                return requestJson("GET", url, apiHeaders("novita", cfg), "", timeoutSec, QueryMode.API, followRedirects = false)
+                    .also { if (usesNativeParser(cfg)) Parsers.parse("novita", it, "", "", context) }
+            } catch (e: CancellationException) {
+                throw e
             } catch (e: Exception) {
                 errors += "${url.substringAfter("novita.ai").take(34)} → ${e.message}"
             }
@@ -700,7 +763,7 @@ class QueryEngine(private val context: Context) {
                             ?: j.optString("error").takeIf { it.isNotBlank() }
                     }
                 }.getOrNull()
-                throw IllegalStateException(
+                throw HttpStatusException(code,
                     context.getString(
                         R.string.err_http,
                         code,
@@ -713,6 +776,8 @@ class QueryEngine(private val context: Context) {
             conn.disconnect()
         }
     }
+
+    private class HttpStatusException(val status: Int, message: String) : IllegalStateException(message)
 
     /**
      * 控制台导出 / 复制出来的 AK、SK 有时外面还包了一层 base64，
